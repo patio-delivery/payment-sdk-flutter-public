@@ -233,7 +233,17 @@ class _MethodsFlowState extends State<MethodsFlow> {
               key: ValueKey(session),
               child: Center(child: _checkout(session)),
             )
-          : KeyedSubtree(key: const ValueKey('methods'), child: _methodsView()),
+          : KeyedSubtree(
+              key: const ValueKey('methods'),
+              // Keeps the cards a readable size on wide screens.
+              child: Align(
+                alignment: Alignment.topCenter,
+                child: ConstrainedBox(
+                  constraints: const BoxConstraints(maxWidth: 720),
+                  child: _methodsView(),
+                ),
+              ),
+            ),
     );
   }
 

@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.4.0
+
+- **`PaymentFlow`: one integration for every version.** The app passes the
+  payment once and `version` (`PaymentVersion.v1`, `v2` or `v3`) decides what
+  the customer sees: the QR right away, the methods list, or a pay button
+  that opens the payment window (`autoOpen` opens it right away). The
+  callbacks (`onSuccess`, `onCancel`, `onTimeout`…) mean the same in all of
+  them. In V1, `createOrderId` creates the order before the QR.
+- **`PaymentVersion`** with `tryParse` for configuration values (`'v1'`,
+  `'V2'`, `' v3 '`; anything else, like `'off'`, is null) and `label`.
+- **Responsive views** for small phones, phones in landscape, tablets,
+  kiosks and desktop: the QR shrinks to fit the width and under half of the
+  screen height; the card, loaders, results, buttons and method cards follow
+  the screen size; dialogs scroll when the screen is short; amounts scale
+  down instead of overflowing; the payment window is larger on big screens.
+- `PaymentCheckout`, `PaymentMethods` and `PaymentSheet` keep their APIs.
+
 ## 0.3.0
 
 - **V3 · Payment Sheet:** `PaymentSheet.show(context, …)` opens the SDK's own

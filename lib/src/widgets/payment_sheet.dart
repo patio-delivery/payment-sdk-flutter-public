@@ -8,6 +8,7 @@ import '../models/payment_method_info.dart';
 import '../models/payment_status.dart';
 import '../models/qr_payment.dart';
 import 'internal/methods_flow.dart';
+import 'internal/responsive.dart';
 
 /// How a payment sheet ended.
 enum PaymentSheetStatus {
@@ -54,7 +55,8 @@ class PaymentSheetResult {
 /// ```
 ///
 /// On narrow screens it slides up from the bottom; on wide ones (kiosks,
-/// tablets, desktop) it opens as a centered dialog. Closing it while a QR is
+/// tablets, desktop) it opens as a centered dialog, larger on big screens.
+/// Its content scrolls when the screen is short. Closing it while a QR is
 /// on screen checks the payment first: a QR that was paid reports
 /// [PaymentSheetStatus.paid], never [PaymentSheetStatus.cancelled].
 abstract final class PaymentSheet {
@@ -118,17 +120,23 @@ abstract final class PaymentSheet {
     // Closing is only through the sheet's own button or the back gesture,
     // both of which verify a QR on screen first.
     final wide = MediaQuery.sizeOf(context).width >= dialogMinWidth;
+    final screen = Responsive.of(context);
     final result = wide
         ? await showDialog<PaymentSheetResult>(
             context: context,
             barrierDismissible: false,
             builder: (_) => Dialog(
               clipBehavior: Clip.antiAlias,
+              insetPadding: screen == ScreenClass.compact
+                  ? const EdgeInsets.all(12)
+                  : const EdgeInsets.symmetric(horizontal: 40, vertical: 24),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(28),
               ),
               child: ConstrainedBox(
-                constraints: const BoxConstraints(maxWidth: 480),
+                constraints: BoxConstraints(
+                  maxWidth: screen == ScreenClass.large ? 600 : 480,
+                ),
                 child: body,
               ),
             ),
@@ -288,10 +296,14 @@ class _SheetBodyState extends State<_SheetBody> {
                             color: theme.colorScheme.onSurfaceVariant,
                           ),
                         ),
-                        Text(
-                          amount,
-                          style: theme.textTheme.headlineMedium
-                              ?.copyWith(fontWeight: FontWeight.w700),
+                        FittedBox(
+                          fit: BoxFit.scaleDown,
+                          alignment: Alignment.centerLeft,
+                          child: Text(
+                            amount,
+                            style: theme.textTheme.headlineMedium
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
                         ),
                         if (widget.description.isNotEmpty)
                           Text(
@@ -322,7 +334,12 @@ class _SheetBodyState extends State<_SheetBody> {
             const Divider(height: 1),
             Flexible(
               child: SingleChildScrollView(
-                padding: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+                padding: Responsive.pick(
+                  context,
+                  compact: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+                  regular: const EdgeInsets.fromLTRB(24, 20, 24, 28),
+                  large: const EdgeInsets.fromLTRB(32, 24, 32, 32),
+                ),
                 child: MethodsFlow(
                   controller: _flow,
                   showCard: false,

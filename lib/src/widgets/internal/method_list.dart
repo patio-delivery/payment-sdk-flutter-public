@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../../models/payment_method_info.dart';
 import 'animations.dart';
+import 'responsive.dart';
 
 /// What to tell the payer before continuing with a method.
 class MethodInstructions {
@@ -15,7 +16,8 @@ class MethodInstructions {
 /// available width, with an instructions step for the methods that have one.
 ///
 /// Layout: one column when narrow; otherwise pairs side by side, and with an
-/// odd count the first method spans the full width.
+/// odd count the first method spans the full width. Cards and icons follow
+/// the screen size.
 class MethodList extends StatefulWidget {
   const MethodList({
     super.key,
@@ -185,13 +187,28 @@ class _MethodCardState extends State<_MethodCard> {
     final method = widget.method;
     final active = widget.highlighted || _hovered;
 
+    final screen = Responsive.of(context);
+    final iconSide = switch (screen) {
+      ScreenClass.compact => widget.wide ? 56.0 : 48.0,
+      ScreenClass.regular => widget.wide ? 88.0 : 72.0,
+      ScreenClass.large => widget.wide ? 104.0 : 88.0,
+    };
+    final minHeight = switch (screen) {
+      ScreenClass.compact => widget.wide ? 96.0 : 128.0,
+      ScreenClass.regular => widget.wide ? 150.0 : 180.0,
+      ScreenClass.large => widget.wide ? 170.0 : 200.0,
+    };
+    final padding = screen == ScreenClass.compact ? 14.0 : 20.0;
+
     final icon = SizedBox.square(
-      dimension: widget.wide ? 88 : 72,
+      dimension: iconSide,
       child: FittedBox(child: _MethodIcon(method: method)),
     );
     final label = Text(
       method.name,
       textAlign: TextAlign.center,
+      maxLines: 2,
+      overflow: TextOverflow.ellipsis,
       style: (widget.wide
               ? theme.textTheme.headlineSmall
               : theme.textTheme.titleMedium)
@@ -212,8 +229,8 @@ class _MethodCardState extends State<_MethodCard> {
           duration: const Duration(milliseconds: 120),
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
-            constraints: BoxConstraints(minHeight: widget.wide ? 150 : 180),
-            padding: const EdgeInsets.all(20),
+            constraints: BoxConstraints(minHeight: minHeight),
+            padding: EdgeInsets.all(padding),
             decoration: BoxDecoration(
               color: colors.surface,
               borderRadius: BorderRadius.circular(20),
@@ -234,13 +251,13 @@ class _MethodCardState extends State<_MethodCard> {
                 ? Row(
                     children: [
                       icon,
-                      const SizedBox(width: 20),
+                      SizedBox(width: padding),
                       Expanded(child: label),
                     ],
                   )
                 : Column(
                     mainAxisAlignment: MainAxisAlignment.center,
-                    children: [icon, const SizedBox(height: 16), label],
+                    children: [icon, SizedBox(height: padding * 0.8), label],
                   ),
           ),
         ),
@@ -282,39 +299,46 @@ class _InstructionsDialog extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final compact = Responsive.of(context) == ScreenClass.compact;
+    // Scrolls when the screen is too short (phones in landscape).
     return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
+      child: SingleChildScrollView(
+        padding: EdgeInsets.all(compact ? 12 : 24),
         child: ConstrainedBox(
           constraints: const BoxConstraints(maxWidth: 480),
           child: Material(
             color: theme.colorScheme.surface,
             borderRadius: BorderRadius.circular(24),
             child: Padding(
-              padding: const EdgeInsets.all(28),
+              padding: EdgeInsets.all(compact ? 20 : 28),
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
                   SizedBox.square(
-                    dimension: 96,
+                    dimension: compact ? 64 : 96,
                     child: FittedBox(child: _MethodIcon(method: method)),
                   ),
                   const SizedBox(height: 16),
                   Text(
                     instructions.title,
                     textAlign: TextAlign.center,
-                    style: theme.textTheme.headlineSmall
+                    style: (compact
+                            ? theme.textTheme.titleLarge
+                            : theme.textTheme.headlineSmall)
                         ?.copyWith(fontWeight: FontWeight.w800),
                   ),
                   const SizedBox(height: 8),
                   Text(
                     instructions.message,
                     textAlign: TextAlign.center,
-                    style: theme.textTheme.bodyLarge?.copyWith(
+                    style: (compact
+                            ? theme.textTheme.bodyMedium
+                            : theme.textTheme.bodyLarge)
+                        ?.copyWith(
                       color: theme.colorScheme.onSurfaceVariant,
                     ),
                   ),
-                  const SizedBox(height: 28),
+                  SizedBox(height: compact ? 20 : 28),
                   Row(
                     children: [
                       Expanded(

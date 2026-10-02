@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import '../../session/payment_session.dart';
 import 'animations.dart';
+import 'responsive.dart';
 import '../payment_qr_view.dart';
 
 /// The QR while it can be paid: optional "not received yet" notice, the
-/// framed QR, the scan hint and the countdown.
+/// framed QR, the scan hint and the countdown. The QR shrinks to fit the
+/// available width and height.
 class QrPanel extends StatelessWidget {
   const QrPanel({super.key, required this.session, this.qrSize = 240});
 
@@ -27,14 +29,24 @@ class QrPanel extends StatelessWidget {
                 )
               : const SizedBox(width: double.infinity),
         ),
-        Container(
-          padding: const EdgeInsets.all(12),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: theme.colorScheme.outlineVariant),
-          ),
-          child: PaymentQrView(payment: session.payment!, size: qrSize),
+        LayoutBuilder(
+          builder: (context, constraints) {
+            const frame = 12.0;
+            final side = Responsive.qrSide(
+              context,
+              requested: qrSize,
+              maxWidth: constraints.maxWidth - frame * 2 - 2,
+            );
+            return Container(
+              padding: const EdgeInsets.all(frame),
+              decoration: BoxDecoration(
+                color: Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(color: theme.colorScheme.outlineVariant),
+              ),
+              child: PaymentQrView(payment: session.payment!, size: side),
+            );
+          },
         ),
         const SizedBox(height: 12),
         Text(

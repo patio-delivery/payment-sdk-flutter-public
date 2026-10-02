@@ -2,6 +2,8 @@ import 'dart:math' as math;
 
 import 'package:flutter/material.dart';
 
+import 'responsive.dart';
+
 /// Icon with ripples pulsing out of it, for "working on it" moments.
 class PulseLoader extends StatefulWidget {
   const PulseLoader({
@@ -10,14 +12,16 @@ class PulseLoader extends StatefulWidget {
     required this.title,
     this.message,
     this.color,
-    this.size = 150,
+    this.size,
   });
 
   final IconData icon;
   final String title;
   final String? message;
   final Color? color;
-  final double size;
+
+  /// Diameter of the ripples; by default it follows the screen size.
+  final double? size;
 
   @override
   State<PulseLoader> createState() => _PulseLoaderState();
@@ -40,13 +44,15 @@ class _PulseLoaderState extends State<PulseLoader>
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final color = widget.color ?? theme.colorScheme.primary;
-    final core = widget.size * 0.42;
+    final size = widget.size ??
+        Responsive.pick<double>(context, compact: 110, regular: 150, large: 180);
+    final core = size * 0.42;
 
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
         SizedBox.square(
-          dimension: widget.size,
+          dimension: size,
           child: AnimatedBuilder(
             animation: _controller,
             builder: (context, _) {
@@ -55,7 +61,8 @@ class _PulseLoaderState extends State<PulseLoader>
               return Stack(
                 alignment: Alignment.center,
                 children: [
-                  for (var i = 0; i < 3; i++) _ripple((t + i / 3) % 1, color),
+                  for (var i = 0; i < 3; i++)
+                    _ripple((t + i / 3) % 1, color, size),
                   Transform.scale(
                     scale: breath,
                     child: Container(
@@ -102,8 +109,8 @@ class _PulseLoaderState extends State<PulseLoader>
     );
   }
 
-  Widget _ripple(double t, Color color) {
-    final size = widget.size * (0.42 + 0.58 * t);
+  Widget _ripple(double t, Color color, double maxSize) {
+    final size = maxSize * (0.42 + 0.58 * t);
     return Container(
       width: size,
       height: size,
@@ -133,6 +140,8 @@ class ResultBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+    final side =
+        Responsive.pick<double>(context, compact: 88, regular: 112, large: 136);
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
@@ -143,13 +152,13 @@ class ResultBadge extends StatelessWidget {
           builder: (context, scale, child) =>
               Transform.scale(scale: scale, child: child),
           child: Container(
-            width: 112,
-            height: 112,
+            width: side,
+            height: side,
             decoration: BoxDecoration(
               color: color.withAlpha(30),
               shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: color, size: 72),
+            child: Icon(icon, color: color, size: side * 0.64),
           ),
         ),
         const SizedBox(height: 16),

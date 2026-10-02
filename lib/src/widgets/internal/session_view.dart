@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import '../../session/payment_session.dart';
 import 'animations.dart';
 import 'qr_panel.dart';
+import 'responsive.dart';
 
 /// Renders a [PaymentSession]: an animated view per phase plus its buttons.
 /// Shared by every SDK payment view.
@@ -49,7 +50,7 @@ class SessionView extends StatelessWidget {
                 child: _content(theme),
               ),
             ),
-            ..._actions(),
+            ..._actions(context),
           ],
         );
       },
@@ -99,7 +100,7 @@ class SessionView extends StatelessWidget {
     };
   }
 
-  List<Widget> _actions() {
+  List<Widget> _actions(BuildContext context) {
     final cancel = onCancel == null
         ? null
         : TextButton(onPressed: onCancel, child: const Text('Cancelar'));
@@ -149,10 +150,12 @@ class SessionView extends StatelessWidget {
     };
 
     if (primary == null && !(withCancel && cancel != null)) return const [];
+    final height =
+        Responsive.pick<double>(context, compact: 48, regular: 52, large: 60);
     return [
-      const SizedBox(height: 24),
+      SizedBox(height: height * 0.45),
       if (primary != null)
-        SizedBox(width: double.infinity, height: 52, child: primary),
+        SizedBox(width: double.infinity, height: height, child: primary),
       if (withCancel && cancel != null) cancel,
     ];
   }

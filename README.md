@@ -111,6 +111,19 @@ API key. Nexus Payments es la fuente de verdad del estado de cada pago.
 - **Cancelar** verifica antes de salir: si el QR ya estaba pagado, reporta éxito
   en lugar de cancelar.
 
+### 1.5 Pantallas
+
+Las vistas se adaptan a cualquier pantalla: celulares chicos, celulares en
+horizontal, tablets, totems y escritorio.
+
+- **El QR** usa `qrSize` como máximo y se achica para entrar en el ancho
+  disponible y en menos de la mitad del alto.
+- **La tarjeta, los loaders, los botones y las tarjetas de métodos** cambian de
+  tamaño según la pantalla; los métodos se acomodan en 1 o 2 columnas.
+- **Los diálogos y la ventana de V3** se desplazan si la pantalla es baja.
+- **Los montos largos** se reducen en lugar de desbordar, también con texto
+  grande.
+
 ---
 
 ## 2. Instalación
@@ -123,7 +136,7 @@ dependencies:
   payment_sdk_flutter:
     git:
       url: URL_DEL_REPOSITORIO
-      ref: v0.3.0            # fija una versión (tag)
+      ref: v0.4.0            # fija una versión (tag)
 ```
 
 ```bash
@@ -219,6 +232,44 @@ Un solo SDK, un componente por nivel de integración. Usa el que necesites.
 | **V1 · Direct Payment** | `PaymentCheckout` | Carrito, total **y sus métodos de pago** | El cobro QR, cuando la app ya eligió QR |
 | **V2 · Embedded Methods** | `PaymentMethods` | Carrito y total | **Los métodos habilitados de la cuenta** y el cobro |
 | **V3 · Payment Sheet** | `PaymentSheet.show` | Carrito y botón "Pagar" | **Su propia ventana** con los métodos y el cobro |
+
+### Una sola integración: `PaymentFlow`
+
+Para no integrar cada versión por separado, `PaymentFlow` recibe el pago una
+vez y la versión decide qué ve el cliente. La versión se identifica con
+`PaymentVersion.v1`, `v2` o `v3`, y se puede leer de configuración:
+
+```dart
+// .env, --dart-define, tu backend…: 'v1', 'v2', 'v3' u 'off'
+final version = PaymentVersion.tryParse(config); // null = no usar el SDK
+
+PaymentFlow(
+  version: version!,
+  payments: payments,
+  amount: 150,
+  orderId: 'ORDER-123',            // o createOrderId
+  currency: 'Bs',
+  description: 'Pedido 123',
+  onSuccess: (payment) => irAPantallaDeExito(payment),
+  onCancel: () => volver(),
+  onTimeout: () => volver(),
+)
+```
+
+| Versión | El cliente ve |
+|---|---|
+| `PaymentVersion.v1` | El QR directo. Con `createOrderId`, primero "Preparando tu pago…" mientras la app crea la orden. |
+| `PaymentVersion.v2` | Los métodos de la cuenta y luego el QR. |
+| `PaymentVersion.v3` | Un botón "Pagar Bs 150.00" que abre la ventana de pago. Con `autoOpen: true` la abre al aparecer. |
+
+- **Los callbacks significan lo mismo en las tres:** `onSuccess` con el pago
+  confirmado, `onCancel` si el cliente sale sin pagar (verificado antes),
+  `onTimeout` si el QR vence.
+- **Parámetros:** los de V2 más `payLabel` (botón y título de la ventana de
+  V3), `methodsTitle`, `autoOpen` y `successDelay`.
+- **Cambiar la versión** reinicia el pago con la nueva.
+- `PaymentVersion.tryParse` acepta mayúsculas y espacios; cualquier otro valor
+  (`'off'`, vacío) devuelve `null`. `label` da `'V1'`, `'V2'`, `'V3'`.
 
 ---
 
