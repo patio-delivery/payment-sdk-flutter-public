@@ -59,6 +59,7 @@ class MethodsFlow extends StatefulWidget {
     this.onStatusChanged,
     this.onTimeout,
     this.onCancel,
+    this.onBack,
   }) : assert(
           orderId != null || createOrderId != null,
           'A payment needs an orderId or a createOrderId',
@@ -111,6 +112,11 @@ class MethodsFlow extends StatefulWidget {
   /// Called when the customer cancels a QR, once it is verified unpaid. The
   /// view then goes back to the methods.
   final VoidCallback? onCancel;
+
+  /// Shows a back button when there is nothing to pay with: the methods
+  /// could not be loaded or none is available. Without it only "Reintentar"
+  /// is offered.
+  final VoidCallback? onBack;
 
   @override
   State<MethodsFlow> createState() => _MethodsFlowState();
@@ -293,6 +299,8 @@ class _MethodsFlowState extends State<MethodsFlow> {
             onRetry: () => setState(() {
               _methods = _loadMethods();
             }),
+            backLabel: widget.backLabel,
+            onBack: widget.onBack,
           );
         }
         final methods = snapshot.data ?? const <PaymentMethodInfo>[];
@@ -316,6 +324,15 @@ class _MethodsFlowState extends State<MethodsFlow> {
               instructionsFor: _instructionsFor,
               onSelected: _select,
             ),
+            if (methods.isEmpty && widget.onBack != null) ...[
+              const SizedBox(height: 16),
+              Center(
+                child: _BackButton(
+                  label: widget.backLabel,
+                  onPressed: widget.onBack!,
+                ),
+              ),
+            ],
           ],
         );
       },
@@ -324,10 +341,17 @@ class _MethodsFlowState extends State<MethodsFlow> {
 }
 
 class _LoadError extends StatelessWidget {
-  const _LoadError({required this.message, required this.onRetry});
+  const _LoadError({
+    required this.message,
+    required this.onRetry,
+    required this.backLabel,
+    this.onBack,
+  });
 
   final String message;
   final VoidCallback onRetry;
+  final String backLabel;
+  final VoidCallback? onBack;
 
   @override
   Widget build(BuildContext context) {
@@ -344,13 +368,36 @@ class _LoadError extends StatelessWidget {
           const SizedBox(height: 12),
           Text(message, textAlign: TextAlign.center),
           const SizedBox(height: 16),
-          OutlinedButton.icon(
-            onPressed: onRetry,
-            icon: const Icon(Icons.refresh),
-            label: const Text('Reintentar'),
+          Wrap(
+            spacing: 12,
+            runSpacing: 8,
+            alignment: WrapAlignment.center,
+            children: [
+              if (onBack case final onBack?)
+                _BackButton(label: backLabel, onPressed: onBack),
+              OutlinedButton.icon(
+                onPressed: onRetry,
+                icon: const Icon(Icons.refresh),
+                label: const Text('Reintentar'),
+              ),
+            ],
           ),
         ],
       ),
     );
   }
+}
+
+class _BackButton extends StatelessWidget {
+  const _BackButton({required this.label, required this.onPressed});
+
+  final String label;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) => TextButton.icon(
+        onPressed: onPressed,
+        icon: const Icon(Icons.arrow_back),
+        label: Text(label),
+      );
 }

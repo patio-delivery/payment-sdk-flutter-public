@@ -367,6 +367,8 @@ class _SheetBodyState extends State<_SheetBody> {
                     PaymentSheetStatus.expired,
                     method: _method,
                   )),
+                  // Nothing to pay with: "Volver" closes the window.
+                  onBack: _requestClose,
                 ),
               ),
             ),

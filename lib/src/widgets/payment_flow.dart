@@ -67,6 +67,7 @@ class PaymentFlow extends StatelessWidget {
     this.onStatusChanged,
     this.onTimeout,
     this.onCancel,
+    this.onBack,
   }) : assert(
           orderId != null || createOrderId != null,
           'PaymentFlow needs an orderId or a createOrderId',
@@ -128,6 +129,11 @@ class PaymentFlow extends StatelessWidget {
   /// button.
   final VoidCallback? onCancel;
 
+  /// V2: shows a back button when there is nothing to pay with (the methods
+  /// could not be loaded or none is available). V3's window always shows it
+  /// in that case and closes, reporting [onCancel]. V1 does not load methods.
+  final VoidCallback? onBack;
+
   @override
   Widget build(BuildContext context) => switch (version) {
         PaymentVersion.v1 => _DirectPayment(flow: this),
@@ -154,6 +160,7 @@ class PaymentFlow extends StatelessWidget {
             onStatusChanged: onStatusChanged,
             onTimeout: onTimeout,
             onCancel: onCancel,
+            onBack: onBack,
           ),
         PaymentVersion.v3 => _SheetLauncher(flow: this),
       };

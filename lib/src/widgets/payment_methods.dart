@@ -49,6 +49,7 @@ class PaymentMethods extends StatefulWidget {
     this.onStatusChanged,
     this.onTimeout,
     this.onCancel,
+    this.onBack,
   }) : assert(
           orderId != null || createOrderId != null,
           'PaymentMethods needs an orderId or a createOrderId',
@@ -96,6 +97,11 @@ class PaymentMethods extends StatefulWidget {
   /// view then goes back to the methods.
   final VoidCallback? onCancel;
 
+  /// Shows a back button when there is nothing to pay with: the methods
+  /// could not be loaded or none is available. Without it only "Reintentar"
+  /// is offered.
+  final VoidCallback? onBack;
+
   @override
   State<PaymentMethods> createState() => _PaymentMethodsState();
 }
@@ -127,6 +133,7 @@ class _PaymentMethodsState extends State<PaymentMethods> {
       onStatusChanged: w.onStatusChanged,
       onTimeout: w.onTimeout,
       onCancel: w.onCancel,
+      onBack: w.onBack,
     );
   }
 }

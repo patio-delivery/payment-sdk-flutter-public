@@ -82,6 +82,7 @@ void main() {
     String? orderId = 'ORD-1',
     Future<String> Function(PaymentMethodInfo method)? createOrderId,
     bool autoOpen = false,
+    VoidCallback? onBack,
   }) async {
     tester.view.physicalSize = const Size(400, 1400);
     tester.view.devicePixelRatio = 1;
@@ -103,6 +104,7 @@ void main() {
             onSuccess: (payment) => events.add('success ${payment.paymentId}'),
             onCancel: () => events.add('cancel'),
             onTimeout: () => events.add('timeout'),
+            onBack: onBack,
           ),
         ),
       ),
@@ -196,6 +198,40 @@ void main() {
     });
   });
 
+  group('V2 with nothing to pay with', () {
+    testWidgets('a failed load offers Volver when onBack is set',
+        (tester) async {
+      adapter.handler =
+          (_) => FakeResponse.error(404, 'Cannot GET /api/payment-methods');
+      await show(tester, PaymentVersion.v2, onBack: () => events.add('back'));
+
+      expect(find.text('Cannot GET /api/payment-methods'), findsOneWidget);
+      expect(find.text('Reintentar'), findsOneWidget);
+      await tester.tap(find.text('Volver'));
+      expect(events, ['back']);
+    });
+
+    testWidgets('an empty list offers Volver when onBack is set',
+        (tester) async {
+      adapter.handler = (_) => const FakeResponse(
+          200, {'ok': true, 'message': 'OK', 'data': <Object>[]});
+      await show(tester, PaymentVersion.v2, onBack: () => events.add('back'));
+
+      expect(find.text('No hay métodos de pago disponibles'), findsOneWidget);
+      await tester.tap(find.text('Volver'));
+      expect(events, ['back']);
+    });
+
+    testWidgets('without onBack there is no back button', (tester) async {
+      adapter.handler =
+          (_) => FakeResponse.error(404, 'Cannot GET /api/payment-methods');
+      await show(tester, PaymentVersion.v2);
+
+      expect(find.text('Reintentar'), findsOneWidget);
+      expect(find.text('Volver'), findsNothing);
+    });
+  });
+
   group('V3', () {
     testWidgets('a pay button opens the window; a paid QR calls onSuccess',
         (tester) async {
@@ -221,6 +257,21 @@ void main() {
 
       expect(events, ['success QR-1']);
       expect(find.byType(BottomSheet), findsNothing);
+    });
+
+    testWidgets('with nothing to pay with, Volver closes the window',
+        (tester) async {
+      adapter.handler =
+          (_) => FakeResponse.error(404, 'Cannot GET /api/payment-methods');
+      await show(tester, PaymentVersion.v3, autoOpen: true);
+      expect(find.byType(BottomSheet), findsOneWidget);
+      expect(find.text('Reintentar'), findsOneWidget);
+
+      await tester.tap(find.text('Volver'));
+      await settle(tester);
+
+      expect(find.byType(BottomSheet), findsNothing);
+      expect(events, ['cancel']);
     });
 
     testWidgets('autoOpen opens the window; closing it calls onCancel',

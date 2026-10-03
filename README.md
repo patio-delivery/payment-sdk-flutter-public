@@ -267,6 +267,10 @@ PaymentFlow(
   `onTimeout` si el QR vence.
 - **Parámetros:** los de V2 más `payLabel` (botón y título de la ventana de
   V3), `methodsTitle`, `autoOpen` y `successDelay`.
+- **Sin métodos para pagar** (no cargan o no hay ninguno): V3 muestra
+  "Volver" dentro de su ventana y la cierra como cancelada (`onCancel`). V2
+  lo muestra si la app pasa `onBack`; es opcional, para que una app con su
+  propio botón de volver no tenga dos. V1 no carga métodos.
 - **Cambiar la versión** reinicia el pago con la nueva.
 - `PaymentVersion.tryParse` acepta mayúsculas y espacios; cualquier otro valor
   (`'off'`, vacío) devuelve `null`. `label` da `'V1'`, `'V2'`, `'V3'`.
