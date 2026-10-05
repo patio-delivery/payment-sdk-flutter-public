@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.4.1
+
+- **"Volver" when there is nothing to pay with** (the methods could not be
+  loaded or none is available): V3's window always shows it and closes as
+  cancelled; V2 shows it when the app passes `onBack` (optional, so apps
+  with their own back button do not get two). V1 does not load methods.
+- Documentation split: `README.md` explains what the SDK is and how it
+  works; `doc/INTEGRACION.md` is the integration guide (requirements,
+  installation and the parameters of every version).
+
 ## 0.4.0
 
 - **`PaymentFlow`: one integration for every version.** The app passes the
@@ -15,10 +25,6 @@
   screen height; the card, loaders, results, buttons and method cards follow
   the screen size; dialogs scroll when the screen is short; amounts scale
   down instead of overflowing; the payment window is larger on big screens.
-- **"Volver" when there is nothing to pay with** (the methods could not be
-  loaded or none is available): V3's window always shows it and closes as
-  cancelled; V2 shows it when the app passes `onBack` (optional, so apps
-  with their own back button do not get two). V1 does not load methods.
 - `PaymentCheckout`, `PaymentMethods` and `PaymentSheet` keep their APIs.
 
 ## 0.3.0
