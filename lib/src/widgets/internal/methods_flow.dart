@@ -60,6 +60,7 @@ class MethodsFlow extends StatefulWidget {
     this.onTimeout,
     this.onCancel,
     this.onBack,
+    this.autoSelectSingleMethod = true,
   }) : assert(
           orderId != null || createOrderId != null,
           'A payment needs an orderId or a createOrderId',
@@ -118,6 +119,11 @@ class MethodsFlow extends StatefulWidget {
   /// is offered.
   final VoidCallback? onBack;
 
+  /// With only one method available, go straight to it (no list, no
+  /// instructions) the first time the methods load. Cancelling then shows
+  /// the list, so the customer is not sent into a new QR on their own.
+  final bool autoSelectSingleMethod;
+
   @override
   State<MethodsFlow> createState() => _MethodsFlowState();
 }
@@ -129,6 +135,9 @@ class _MethodsFlowState extends State<MethodsFlow> {
   String _description = '';
   bool _preparing = false;
   String? _orderError;
+
+  /// Whether the single available method was already chosen automatically.
+  bool _autoSelected = false;
 
   @override
   void initState() {
@@ -155,7 +164,16 @@ class _MethodsFlowState extends State<MethodsFlow> {
 
   Future<List<PaymentMethodInfo>> _loadMethods() async {
     final methods = await widget.payments.getPaymentMethods();
-    return methods.where((m) => m.isSupported).toList();
+    final supported = methods.where((m) => m.isSupported).toList();
+    if (widget.autoSelectSingleMethod &&
+        supported.length == 1 &&
+        !_autoSelected &&
+        _session == null &&
+        mounted) {
+      _autoSelected = true;
+      unawaited(_select(supported.single));
+    }
+    return supported;
   }
 
   /// Hands the current widget values to the session.

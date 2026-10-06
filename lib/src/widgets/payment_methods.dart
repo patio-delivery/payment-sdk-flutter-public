@@ -50,6 +50,7 @@ class PaymentMethods extends StatefulWidget {
     this.onTimeout,
     this.onCancel,
     this.onBack,
+    this.autoSelectSingleMethod = true,
   }) : assert(
           orderId != null || createOrderId != null,
           'PaymentMethods needs an orderId or a createOrderId',
@@ -102,6 +103,11 @@ class PaymentMethods extends StatefulWidget {
   /// is offered.
   final VoidCallback? onBack;
 
+  /// With only one method available, go straight to it (no list, no
+  /// instructions) the first time the methods load. Cancelling then shows
+  /// the list, so the customer is not sent into a new QR on their own.
+  final bool autoSelectSingleMethod;
+
   @override
   State<PaymentMethods> createState() => _PaymentMethodsState();
 }
@@ -134,6 +140,7 @@ class _PaymentMethodsState extends State<PaymentMethods> {
       onTimeout: w.onTimeout,
       onCancel: w.onCancel,
       onBack: w.onBack,
+      autoSelectSingleMethod: w.autoSelectSingleMethod,
     );
   }
 }

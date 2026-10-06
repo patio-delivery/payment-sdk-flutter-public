@@ -83,6 +83,7 @@ void main() {
     Future<String> Function(PaymentMethodInfo method)? createOrderId,
     bool autoOpen = false,
     VoidCallback? onBack,
+    bool autoSelectSingleMethod = false,
   }) async {
     tester.view.physicalSize = const Size(400, 1400);
     tester.view.devicePixelRatio = 1;
@@ -105,6 +106,7 @@ void main() {
             onCancel: () => events.add('cancel'),
             onTimeout: () => events.add('timeout'),
             onBack: onBack,
+            autoSelectSingleMethod: autoSelectSingleMethod,
           ),
         ),
       ),
@@ -195,6 +197,90 @@ void main() {
 
       expect(find.byType(PaymentQrView), findsOneWidget);
       await unmount(tester);
+    });
+  });
+
+  group('a single available method', () {
+    testWidgets('V2 goes straight to its QR, without list or instructions',
+        (tester) async {
+      PaymentMethodInfo? asked;
+      await show(
+        tester,
+        PaymentVersion.v2,
+        orderId: null,
+        createOrderId: (method) async {
+          asked = method;
+          return 'ORD-5';
+        },
+        autoSelectSingleMethod: true,
+      );
+
+      expect(find.text('¿Con qué vas a pagar hoy?'), findsNothing);
+      expect(find.text('Prepárate para escanear'), findsNothing);
+      expect(asked?.code, 'QR');
+      expect(find.byType(PaymentQrView), findsOneWidget);
+      expect(lastQrBody()['order'], 'ORD-5');
+      await unmount(tester);
+    });
+
+    testWidgets('an unsupported method does not count as a second one',
+        (tester) async {
+      adapter.handler = (request) {
+        if (request.uri.path == '/api/payment-methods') {
+          return const FakeResponse(200, {
+            'ok': true,
+            'message': 'OK',
+            'data': [
+              {'code': 'QR', 'name': 'Pago QR', 'currency': 'BOB'},
+              {'code': 'CARD', 'name': 'Tarjeta', 'currency': 'BOB'},
+            ],
+          });
+        }
+        return FakeResponse.ok({
+          'id_payment': 'QR-1',
+          'imageQR': tinyPngBase64,
+          'status': 'PENDING',
+        });
+      };
+      await show(tester, PaymentVersion.v2, autoSelectSingleMethod: true);
+
+      expect(find.byType(PaymentQrView), findsOneWidget);
+      await unmount(tester);
+    });
+
+    testWidgets('cancelling shows the list instead of a new QR',
+        (tester) async {
+      await show(tester, PaymentVersion.v2, autoSelectSingleMethod: true);
+      expect(find.byType(PaymentQrView), findsOneWidget);
+      final qrsBefore =
+          adapter.requests.where((r) => r.method == 'POST').length;
+
+      await tester.ensureVisible(find.text('Cancelar'));
+      await tester.tap(find.text('Cancelar'));
+      await settle(tester);
+
+      expect(events, ['cancel']);
+      expect(find.byType(PaymentQrView), findsNothing);
+      expect(find.text('Pago QR'), findsOneWidget);
+      expect(adapter.requests.where((r) => r.method == 'POST').length,
+          qrsBefore);
+    });
+
+    testWidgets('V3 opens the window straight on the QR', (tester) async {
+      await show(
+        tester,
+        PaymentVersion.v3,
+        autoOpen: true,
+        autoSelectSingleMethod: true,
+      );
+
+      expect(find.byType(BottomSheet), findsOneWidget);
+      expect(find.text('¿Con qué vas a pagar hoy?'), findsNothing);
+      expect(find.byType(PaymentQrView), findsOneWidget);
+
+      await tester.tap(find.byTooltip('Cerrar'));
+      await settle(tester);
+      expect(events, ['cancel']);
     });
   });
 

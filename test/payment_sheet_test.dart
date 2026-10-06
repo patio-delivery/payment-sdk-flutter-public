@@ -73,6 +73,7 @@ void main() {
               onPressed: () async {
                 result = await PaymentSheet.show(
                   context,
+                  autoSelectSingleMethod: false,
                   payments: payments,
                   amount: 150,
                   orderId: 'ORD-1',

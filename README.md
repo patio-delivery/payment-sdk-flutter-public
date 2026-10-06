@@ -130,6 +130,7 @@ pueden elegir desde configuración (`'v1'`, `'v2'`, `'v3'` u `'off'`). Con
 | Rechazado | ✗ "Pago rechazado" | Generar nuevo QR, Cancelar |
 | Tiempo agotado | "Tiempo agotado" | Generar nuevo QR (si la app no maneja `onTimeout`) |
 | Error al generar | "No pudimos generar el QR" + motivo | Reintentar, Cancelar |
+| Un solo método (V2/V3) | Directo el QR de ese método, sin lista | Igual que "Esperando pago" |
 | Sin métodos (V2/V3) | El error o "No hay métodos de pago disponibles" | Reintentar, **Volver** |
 
 ### 3.4 Tiempos y reglas

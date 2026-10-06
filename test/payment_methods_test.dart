@@ -80,6 +80,7 @@ void main() {
   }) =>
       PaymentMethods(
         payments: payments,
+        autoSelectSingleMethod: false,
         amount: 150,
         orderId: orderId,
         createOrderId: createOrderId,
@@ -145,6 +146,7 @@ void main() {
       tester,
       PaymentMethods(
         payments: payments,
+        autoSelectSingleMethod: false,
         amount: 150,
         createOrderId: (_) async => 'ORD-9',
         description: 'ignored',
@@ -165,6 +167,7 @@ void main() {
       tester,
       PaymentMethods(
         payments: payments,
+        autoSelectSingleMethod: false,
         amount: 150,
         orderId: 'ORD-1',
         description: 'Pedido 1',
@@ -197,6 +200,7 @@ void main() {
       tester,
       PaymentMethods(
         payments: payments,
+        autoSelectSingleMethod: false,
         amount: 150,
         orderId: 'ORD-1',
         pollInterval: const Duration(minutes: 1),

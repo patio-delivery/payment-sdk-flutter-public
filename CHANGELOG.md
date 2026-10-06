@@ -2,6 +2,11 @@
 
 ## 0.4.1
 
+- **A single method goes straight to its payment** (V2 and V3): when the
+  account has only one method this SDK can charge, the first load skips the
+  list and the instructions and shows its QR. Cancelling then shows the
+  list, so no new QR is created on its own. With more than one method the
+  list is shown as before. `autoSelectSingleMethod: false` turns it off.
 - **"Volver" when there is nothing to pay with** (the methods could not be
   loaded or none is available): V3's window always shows it and closes as
   cancelled; V2 shows it when the app passes `onBack` (optional, so apps

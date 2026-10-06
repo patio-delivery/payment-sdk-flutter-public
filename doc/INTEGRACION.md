@@ -213,6 +213,7 @@ if (version == null) {
 | `successDelay` | 2 s | V3: cuánto se ve "¡Pago confirmado!" antes de cerrar la ventana. |
 | `qrSize` | 240 | Tamaño máximo del QR. Se achica solo para entrar en la pantalla. |
 | `autoOpen` | `false` | V3: abre la ventana al aparecer, sin mostrar el botón. |
+| `autoSelectSingleMethod` | `true` | V2 y V3: si la cuenta tiene **un solo** método disponible, va directo a su cobro (sin lista ni aviso). Con más de uno, muestra la lista. |
 
 **Callbacks** (ver [sección 9](#9-qué-significa-cada-callback))
 
@@ -224,8 +225,8 @@ if (version == null) {
 | Versión | Comportamiento |
 |---|---|
 | V1 | Muestra el QR de inmediato. Con `createOrderId`, primero "Preparando tu pago…"; si falla, "Reintentar" y "Cancelar". |
-| V2 | Carga los métodos de la cuenta, el cliente elige, aparece el aviso y luego el QR. |
-| V3 | Muestra el botón "Pagar Bs 150.00" (o abre directo con `autoOpen`). La ventana contiene la lista y el QR, y se cierra sola al pagar o al vencer. |
+| V2 | Carga los métodos de la cuenta. Si hay **uno solo**, va directo a su QR; si hay varios, el cliente elige, aparece el aviso y luego el QR. |
+| V3 | Muestra el botón "Pagar Bs 150.00" (o abre directo con `autoOpen`). La ventana muestra la lista, o directamente el QR si hay un solo método, y se cierra sola al pagar o al vencer. |
 
 ---
 
@@ -293,9 +294,12 @@ PaymentMethods(
 | `title` | no | `'¿Con qué vas a pagar hoy?'` | Título de la lista. `null` lo oculta. |
 | `confirmLabel`, `backLabel`, `qrInstructionsTitle`, `qrInstructionsMessage` | no | ver sección 5 | Textos. |
 | `qrTimeout`, `confirmTimeout`, `pollInterval`, `qrSize` | no | 5 min / 20 s / 3 s / 240 | Igual que V1. |
+| `autoSelectSingleMethod` | no | `true` | Con un solo método disponible, va directo a su cobro. |
 | `onMethodSelected`, `onSuccess`, `onError`, `onStatusChanged`, `onTimeout`, `onCancel`, `onBack` | no | — | Ver [sección 9](#9-qué-significa-cada-callback). |
 
 - Solo se muestran los métodos que esta versión del SDK sabe cobrar (hoy, QR).
+- **Un solo método:** la primera vez va directo a su QR. Si el cliente
+  cancela, ve la lista (con ese método) en vez de generarse otro QR solo.
 - `onCancel` en V2: el cliente canceló un QR (verificado sin pagar) y la vista
   ya volvió a la lista.
 
@@ -332,6 +336,7 @@ switch (result.status) {
 | `confirmLabel`, `backLabel`, `qrInstructionsTitle`, `qrInstructionsMessage` | no | ver sección 5 | Textos. |
 | `qrTimeout`, `confirmTimeout`, `pollInterval`, `qrSize` | no | 5 min / 20 s / 3 s / 240 | Igual que V1. |
 | `successDelay` | no | 2 s | Cuánto se ve "¡Pago confirmado!" antes de cerrar. |
+| `autoSelectSingleMethod` | no | `true` | Con un solo método disponible, la ventana abre directo en su QR. |
 | `onMethodSelected`, `onError`, `onStatusChanged` | no | — | Ver [sección 9](#9-qué-significa-cada-callback). |
 
 **Resultado (`PaymentSheetResult`):** `status` (`paid`, `expired` o

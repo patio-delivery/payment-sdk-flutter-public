@@ -68,6 +68,7 @@ class PaymentFlow extends StatelessWidget {
     this.onTimeout,
     this.onCancel,
     this.onBack,
+    this.autoSelectSingleMethod = true,
   }) : assert(
           orderId != null || createOrderId != null,
           'PaymentFlow needs an orderId or a createOrderId',
@@ -134,6 +135,10 @@ class PaymentFlow extends StatelessWidget {
   /// in that case and closes, reporting [onCancel]. V1 does not load methods.
   final VoidCallback? onBack;
 
+  /// V2 and V3: with only one method available, go straight to it the
+  /// first time the methods load, without the list or the instructions.
+  final bool autoSelectSingleMethod;
+
   @override
   Widget build(BuildContext context) => switch (version) {
         PaymentVersion.v1 => _DirectPayment(flow: this),
@@ -161,6 +166,7 @@ class PaymentFlow extends StatelessWidget {
             onTimeout: onTimeout,
             onCancel: onCancel,
             onBack: onBack,
+            autoSelectSingleMethod: autoSelectSingleMethod,
           ),
         PaymentVersion.v3 => _SheetLauncher(flow: this),
       };
@@ -309,6 +315,7 @@ class _SheetLauncherState extends State<_SheetLauncher> {
       onMethodSelected: flow.onMethodSelected,
       onError: flow.onError,
       onStatusChanged: flow.onStatusChanged,
+      autoSelectSingleMethod: flow.autoSelectSingleMethod,
     );
     if (mounted) setState(() => _open = false);
     switch (result.status) {

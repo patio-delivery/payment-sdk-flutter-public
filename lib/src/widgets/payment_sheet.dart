@@ -88,6 +88,7 @@ abstract final class PaymentSheet {
     ValueChanged<PaymentMethodInfo>? onMethodSelected,
     ValueChanged<PaymentSdkException>? onError,
     ValueChanged<PaymentStatus>? onStatusChanged,
+    bool autoSelectSingleMethod = true,
   }) async {
     assert(
       orderId != null || createOrderId != null,
@@ -115,6 +116,7 @@ abstract final class PaymentSheet {
       onMethodSelected: onMethodSelected,
       onError: onError,
       onStatusChanged: onStatusChanged,
+      autoSelectSingleMethod: autoSelectSingleMethod,
     );
 
     // Closing is only through the sheet's own button or the back gesture,
@@ -176,6 +178,7 @@ class _SheetBody extends StatefulWidget {
     required this.onMethodSelected,
     required this.onError,
     required this.onStatusChanged,
+    required this.autoSelectSingleMethod,
   });
 
   final PaymentSdk payments;
@@ -199,6 +202,7 @@ class _SheetBody extends StatefulWidget {
   final ValueChanged<PaymentMethodInfo>? onMethodSelected;
   final ValueChanged<PaymentSdkException>? onError;
   final ValueChanged<PaymentStatus>? onStatusChanged;
+  final bool autoSelectSingleMethod;
 
   @override
   State<_SheetBody> createState() => _SheetBodyState();
@@ -369,6 +373,7 @@ class _SheetBodyState extends State<_SheetBody> {
                   )),
                   // Nothing to pay with: "Volver" closes the window.
                   onBack: _requestClose,
+                  autoSelectSingleMethod: widget.autoSelectSingleMethod,
                 ),
               ),
             ),

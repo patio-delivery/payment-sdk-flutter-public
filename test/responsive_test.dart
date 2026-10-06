@@ -75,6 +75,8 @@ void main() {
             padding: const EdgeInsets.all(16),
             child: PaymentFlow(
               version: version,
+              // Checks the methods list too, not only the QR.
+              autoSelectSingleMethod: false,
               payments: payments,
               amount: 1234.5,
               orderId: 'ORD-1',
