@@ -41,7 +41,8 @@ API key. Nexus Payments es la fuente de verdad del estado de cada pago.
 | **`PaymentMethods`** (V2) | Lista de métodos habilitados de la cuenta y cobro del elegido, dentro de tu pantalla. |
 | **`PaymentSheet`** (V3) | Ventana de pago propia del SDK que devuelve cómo terminó. |
 | **`PaymentSdk`** | API sin interfaz: generar QR, consultar y escuchar el estado, listar métodos. |
-| **Modelos y errores** | `QrPayment`, `PaymentStatus`, `PaymentMethodInfo`, `PaymentVersion` y la jerarquía `PaymentSdkException`. |
+| **Pago en efectivo** | V2 y V3 pueden ofrecer "EFECTIVO" (si tu app lo activa): el cliente recibe un código y paga en caja. |
+| **Modelos y errores** | `QrPayment`, `CashPayment`, `PaymentStatus`, `PaymentMethodInfo`, `PaymentVersion` y la jerarquía `PaymentSdkException`. |
 | **Widgets sueltos** | `PaymentQrView` (la imagen del QR) y `PaymentStatusView` (ícono y texto de un estado). |
 
 Depende solo de `dio` (HTTP) y `clock` (hora testeable). No usa librerías de
@@ -132,6 +133,7 @@ pueden elegir desde configuración (`'v1'`, `'v2'`, `'v3'` u `'off'`). Con
 | Error al generar | "No pudimos generar el QR" + motivo | Reintentar, Cancelar |
 | Un solo método (V2/V3) | Directo el QR de ese método, sin lista | Igual que "Esperando pago" |
 | Sin métodos (V2/V3) | El error o "No hay métodos de pago disponibles" | Reintentar, **Volver** |
+| Efectivo (V2/V3) | Aviso "Pagarás en caja", luego el **código** para presentar en caja | V3: **Listo**. El pedido queda pendiente hasta que se cobra |
 
 ### 3.4 Tiempos y reglas
 
@@ -225,6 +227,8 @@ y las vistas en 6 tipos de pantalla.
 
 ## 8. Limitaciones
 
-- **Solo QR por ahora.** V2 y V3 ya están preparadas para más métodos: cuando
-  estén disponibles aparecerán sin cambiar las apps.
+- **QR y efectivo.** V2 y V3 ya están preparadas para más métodos: cuando
+  estén disponibles aparecerán sin cambiar las apps. El efectivo solo aparece
+  si tu app lo activa (`onCashPayment` o `acceptCash`); ver
+  [doc/INTEGRACION.md](doc/INTEGRACION.md#10-pago-en-efectivo).
 - **Textos por defecto en español** (configurables en V2, V3 y `PaymentFlow`).

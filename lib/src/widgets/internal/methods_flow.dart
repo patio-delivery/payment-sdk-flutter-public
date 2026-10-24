@@ -4,11 +4,13 @@ import 'package:flutter/material.dart';
 
 import '../../core/payment_sdk.dart';
 import '../../exceptions/payment_sdk_exception.dart';
+import '../../models/cash_payment.dart';
 import '../../models/payment_method_info.dart';
 import '../../models/payment_status.dart';
 import '../../models/qr_payment.dart';
 import '../../session/payment_session.dart';
 import 'animations.dart';
+import 'cash_checkout.dart';
 import 'method_list.dart';
 import 'payment_card.dart';
 import 'session_view.dart';
@@ -20,6 +22,9 @@ class MethodsFlowController {
 
   /// Whether a payment is in progress (a QR or its result is on screen).
   bool get isPaying => _state?._session != null;
+
+  /// The cash payment on screen, once its code exists.
+  CashPayment? get cashPayment => _state?._cashPayment;
 
   /// Checks a QR on screen before leaving. True when it is safe to leave;
   /// false when the QR was in fact paid (the flow then reports success).
@@ -49,6 +54,10 @@ class MethodsFlow extends StatefulWidget {
     this.qrInstructionsMessage =
         'Tu código QR aparecerá en la siguiente pantalla. '
             'Apúntalo con tu cámara y completa el pago.',
+    this.cashInstructionsTitle = 'Pagarás en caja',
+    this.cashInstructionsMessage =
+        'Te daremos un código de pago. Preséntalo en caja para completar '
+            'tu compra.',
     this.qrTimeout = const Duration(minutes: 5),
     this.confirmTimeout = const Duration(seconds: 20),
     this.pollInterval = const Duration(seconds: 3),
@@ -60,6 +69,9 @@ class MethodsFlow extends StatefulWidget {
     this.onTimeout,
     this.onCancel,
     this.onBack,
+    this.onCashPayment,
+    this.onCashDone,
+    this.cashDoneLabel = 'Listo',
     this.autoSelectSingleMethod = true,
   }) : assert(
           orderId != null || createOrderId != null,
@@ -97,6 +109,8 @@ class MethodsFlow extends StatefulWidget {
   final String backLabel;
   final String qrInstructionsTitle;
   final String qrInstructionsMessage;
+  final String cashInstructionsTitle;
+  final String cashInstructionsMessage;
   final Duration qrTimeout;
   final Duration confirmTimeout;
   final Duration pollInterval;
@@ -119,9 +133,20 @@ class MethodsFlow extends StatefulWidget {
   /// is offered.
   final VoidCallback? onBack;
 
-  /// With only one method available, go straight to it (no list, no
+  /// Offers cash when the account has it, and is called once its code
+  /// exists. Without it cash is never shown: an app that can't handle a
+  /// pending cash order never gets one.
+  final ValueChanged<CashPayment>? onCashPayment;
+
+  /// Shows a [cashDoneLabel] button under the cash code (the sheet closes
+  /// with it).
+  final ValueChanged<CashPayment>? onCashDone;
+  final String cashDoneLabel;
+
+  /// With only one QR method available, go straight to it (no list, no
   /// instructions) the first time the methods load. Cancelling then shows
-  /// the list, so the customer is not sent into a new QR on their own.
+  /// the list, so the customer is not sent into a new QR on their own. Cash
+  /// is never chosen on its own: it leaves an order pending.
   final bool autoSelectSingleMethod;
 
   @override
@@ -132,6 +157,10 @@ class _MethodsFlowState extends State<MethodsFlow> {
   late Future<List<PaymentMethodInfo>> _methods = _loadMethods();
   PaymentMethodInfo? _chosen;
   PaymentSession? _session;
+
+  /// The cash order on screen, and its payment once the code exists.
+  String? _cashOrderId;
+  CashPayment? _cashPayment;
   String _description = '';
   bool _preparing = false;
   String? _orderError;
@@ -164,9 +193,13 @@ class _MethodsFlowState extends State<MethodsFlow> {
 
   Future<List<PaymentMethodInfo>> _loadMethods() async {
     final methods = await widget.payments.getPaymentMethods();
-    final supported = methods.where((m) => m.isSupported).toList();
+    final acceptsCash = widget.onCashPayment != null;
+    final supported = methods
+        .where((m) => m.isSupported && (!m.isCash || acceptsCash))
+        .toList();
     if (widget.autoSelectSingleMethod &&
         supported.length == 1 &&
+        supported.single.isQr &&
         !_autoSelected &&
         _session == null &&
         mounted) {
@@ -209,6 +242,15 @@ class _MethodsFlowState extends State<MethodsFlow> {
       return;
     }
     if (!mounted) return;
+    if (method.isCash) {
+      return setState(() {
+        _preparing = false;
+        _chosen = method;
+        _description =
+            widget.descriptionFor?.call(orderId) ?? widget.description;
+        _cashOrderId = orderId;
+      });
+    }
     setState(() {
       _preparing = false;
       _chosen = method;
@@ -228,6 +270,8 @@ class _MethodsFlowState extends State<MethodsFlow> {
     setState(() {
       _session = null;
       _chosen = null;
+      _cashOrderId = null;
+      _cashPayment = null;
     });
   }
 
@@ -240,16 +284,26 @@ class _MethodsFlowState extends State<MethodsFlow> {
     }
   }
 
-  MethodInstructions? _instructionsFor(PaymentMethodInfo method) => method.isQr
-      ? MethodInstructions(
-          title: widget.qrInstructionsTitle,
-          message: widget.qrInstructionsMessage,
-        )
-      : null;
+  MethodInstructions? _instructionsFor(PaymentMethodInfo method) {
+    if (method.isQr) {
+      return MethodInstructions(
+        title: widget.qrInstructionsTitle,
+        message: widget.qrInstructionsMessage,
+      );
+    }
+    if (method.isCash) {
+      return MethodInstructions(
+        title: widget.cashInstructionsTitle,
+        message: widget.cashInstructionsMessage,
+      );
+    }
+    return null;
+  }
 
   @override
   Widget build(BuildContext context) {
     final session = _session;
+    final cashOrderId = _cashOrderId;
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),
       child: session != null
@@ -257,17 +311,22 @@ class _MethodsFlowState extends State<MethodsFlow> {
               key: ValueKey(session),
               child: Center(child: _checkout(session)),
             )
-          : KeyedSubtree(
-              key: const ValueKey('methods'),
-              // Keeps the cards a readable size on wide screens.
-              child: Align(
-                alignment: Alignment.topCenter,
-                child: ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 720),
-                  child: _methodsView(),
+          : cashOrderId != null
+              ? KeyedSubtree(
+                  key: ValueKey('cash-$cashOrderId'),
+                  child: Center(child: _cashCheckout(cashOrderId)),
+                )
+              : KeyedSubtree(
+                  key: const ValueKey('methods'),
+                  // Keeps the cards a readable size on wide screens.
+                  child: Align(
+                    alignment: Alignment.topCenter,
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 720),
+                      child: _methodsView(),
+                    ),
+                  ),
                 ),
-              ),
-            ),
     );
   }
 
@@ -277,6 +336,30 @@ class _MethodsFlowState extends State<MethodsFlow> {
       qrSize: widget.qrSize,
       onNewQr: _backToMethods,
       onCancel: _cancel,
+    );
+    if (!widget.showCard) return view;
+    return PaymentCard(
+      amount: widget.amount,
+      currency: _chosen?.currency ?? widget.currency,
+      description: _description,
+      child: view,
+    );
+  }
+
+  Widget _cashCheckout(String orderId) {
+    final view = CashCheckout(
+      payments: widget.payments,
+      orderId: orderId,
+      amount: widget.amount,
+      description: _description,
+      onCreated: (cash) {
+        _cashPayment = cash;
+        widget.onCashPayment?.call(cash);
+      },
+      onError: widget.onError,
+      onBack: _backToMethods,
+      onDone: widget.onCashDone,
+      doneLabel: widget.cashDoneLabel,
     );
     if (!widget.showCard) return view;
     return PaymentCard(

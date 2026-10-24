@@ -1,9 +1,9 @@
 name: payment_sdk_flutter
 description: >-
-  Flutter SDK for Nexus Payments. Generates QR payments, queries their status
-  and provides a reusable checkout widget. Talks only to the Nexus Payments
-  backend; payment providers stay behind it.
-version: 0.4.1
+  Flutter SDK for Nexus Payments. Generates QR and cash payments, queries
+  their status and provides a reusable checkout widget. Talks only to the
+  Nexus Payments backend; payment providers stay behind it.
+version: 0.5.0
 publish_to: none
 
 environment:

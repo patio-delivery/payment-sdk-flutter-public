@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/payment_sdk.dart';
 import '../exceptions/payment_sdk_exception.dart';
+import '../models/cash_payment.dart';
 import '../models/payment_method_info.dart';
 import '../models/payment_status.dart';
 import '../models/payment_version.dart';
@@ -55,6 +56,10 @@ class PaymentFlow extends StatelessWidget {
     this.qrInstructionsMessage =
         'Tu código QR aparecerá en la siguiente pantalla. '
             'Apúntalo con tu cámara y completa el pago.',
+    this.cashInstructionsTitle = 'Pagarás en caja',
+    this.cashInstructionsMessage =
+        'Te daremos un código de pago. Preséntalo en caja para completar '
+            'tu compra.',
     this.autoOpen = false,
     this.qrTimeout = const Duration(minutes: 5),
     this.confirmTimeout = const Duration(seconds: 20),
@@ -68,6 +73,7 @@ class PaymentFlow extends StatelessWidget {
     this.onTimeout,
     this.onCancel,
     this.onBack,
+    this.onCashPayment,
     this.autoSelectSingleMethod = true,
   }) : assert(
           orderId != null || createOrderId != null,
@@ -107,6 +113,10 @@ class PaymentFlow extends StatelessWidget {
   final String qrInstructionsTitle;
   final String qrInstructionsMessage;
 
+  /// V2 and V3: shown before creating a cash payment.
+  final String cashInstructionsTitle;
+  final String cashInstructionsMessage;
+
   /// V3: open the payment window right away instead of showing the button.
   final bool autoOpen;
   final Duration qrTimeout;
@@ -135,6 +145,13 @@ class PaymentFlow extends StatelessWidget {
   /// in that case and closes, reporting [onCancel]. V1 does not load methods.
   final VoidCallback? onBack;
 
+  /// V2 and V3: offers cash ("EFECTIVO") when the account has it, and is
+  /// called once its code exists — the order is then pending until it is
+  /// paid at the cashier. Without it cash is never shown. In V2 the SDK keeps
+  /// showing the code; in V3 it is called when the customer closes the window
+  /// with the code on screen. V1 is QR only.
+  final ValueChanged<CashPayment>? onCashPayment;
+
   /// V2 and V3: with only one method available, go straight to it the
   /// first time the methods load, without the list or the instructions.
   final bool autoSelectSingleMethod;
@@ -155,6 +172,8 @@ class PaymentFlow extends StatelessWidget {
             backLabel: backLabel,
             qrInstructionsTitle: qrInstructionsTitle,
             qrInstructionsMessage: qrInstructionsMessage,
+            cashInstructionsTitle: cashInstructionsTitle,
+            cashInstructionsMessage: cashInstructionsMessage,
             qrTimeout: qrTimeout,
             confirmTimeout: confirmTimeout,
             pollInterval: pollInterval,
@@ -166,6 +185,7 @@ class PaymentFlow extends StatelessWidget {
             onTimeout: onTimeout,
             onCancel: onCancel,
             onBack: onBack,
+            onCashPayment: onCashPayment,
             autoSelectSingleMethod: autoSelectSingleMethod,
           ),
         PaymentVersion.v3 => _SheetLauncher(flow: this),
@@ -307,6 +327,9 @@ class _SheetLauncherState extends State<_SheetLauncher> {
       backLabel: flow.backLabel,
       qrInstructionsTitle: flow.qrInstructionsTitle,
       qrInstructionsMessage: flow.qrInstructionsMessage,
+      cashInstructionsTitle: flow.cashInstructionsTitle,
+      cashInstructionsMessage: flow.cashInstructionsMessage,
+      acceptCash: flow.onCashPayment != null,
       qrTimeout: flow.qrTimeout,
       confirmTimeout: flow.confirmTimeout,
       pollInterval: flow.pollInterval,
@@ -323,6 +346,8 @@ class _SheetLauncherState extends State<_SheetLauncher> {
         flow.onSuccess?.call(result.payment!);
       case PaymentSheetStatus.expired:
         flow.onTimeout?.call();
+      case PaymentSheetStatus.cashPending:
+        flow.onCashPayment?.call(result.cashPayment!);
       case PaymentSheetStatus.cancelled:
         flow.onCancel?.call();
     }

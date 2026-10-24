@@ -5,6 +5,7 @@ import 'package:dio/dio.dart' show HttpClientAdapter;
 
 import '../config/payment_sdk_config.dart';
 import '../exceptions/payment_sdk_exception.dart';
+import '../models/cash_payment.dart';
 import '../models/payment_method_info.dart';
 import '../models/payment_status.dart';
 import '../models/qr_payment.dart';
@@ -76,6 +77,44 @@ class PaymentSdk {
   Future<PaymentStatus> getPaymentStatus(String orderId) async {
     final data =
         await _api.get('qr/status/${_pathSegment(orderId, 'orderId')}');
+    return PaymentStatus.fromJson(data['status']);
+  }
+
+  /// Creates a cash payment and its code (`POST /cash`). The payer takes the
+  /// code to a collector; the payment stays pending until it is paid or
+  /// cancelled there.
+  ///
+  /// Asking again for an [orderId] that is still pending returns the same
+  /// code. The account must have cash enabled, otherwise this throws a
+  /// [ValidationException].
+  Future<CashPayment> createCashPayment({
+    required String orderId,
+    required num amount,
+    String description = '',
+  }) async {
+    final order = orderId.trim();
+    final errors = [
+      if (order.isEmpty) 'orderId must not be empty',
+      if (!amount.isFinite || amount <= 0) 'amount must be greater than 0',
+    ];
+    if (errors.isNotEmpty) {
+      throw ValidationException(errors.join('; '), errors: errors);
+    }
+
+    final data = await _api.post('cash', {
+      'order': order,
+      'amount': amount,
+      if (description.isNotEmpty) 'glosa': description,
+    });
+    return CashPayment.fromJson(data);
+  }
+
+  /// Current status of the cash payment for [orderId]
+  /// (`GET /cash/status/:order`). Throws [PaymentNotFoundException] for an
+  /// unknown order.
+  Future<PaymentStatus> getCashPaymentStatus(String orderId) async {
+    final data =
+        await _api.get('cash/status/${_pathSegment(orderId, 'orderId')}');
     return PaymentStatus.fromJson(data['status']);
   }
 

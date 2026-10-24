@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.5.0
+
+- **Cash payments ("EFECTIVO")** in V2 and V3: the customer gets a code
+  (`EF-XXXXXXXX`) to pay at the cashier, and the order stays pending until a
+  collector marks it paid or cancels it — the code never expires.
+  - **Opt-in per app:** cash is only offered when the app handles it —
+    `onCashPayment` in `PaymentFlow` and `PaymentMethods`, `acceptCash: true`
+    in `PaymentSheet.show`. Apps that don't pass it never see it, even if the
+    account has cash enabled.
+  - It is never chosen on its own (not even as the only method): it always
+    asks first with "Pagarás en caja". Once the code is on screen there is no
+    going back. Retrying returns the same code for the same order.
+  - V2 shows the code and calls `onCashPayment`. V3 shows it with "Listo";
+    "Listo" or closing the window resolves to the new
+    `PaymentSheetStatus.cashPending`, with `result.cashPayment`.
+  - Texts: `cashInstructionsTitle`, `cashInstructionsMessage`.
+- **`PaymentSdk.createCashPayment`** and **`getCashPaymentStatus`**, and the
+  `CashPayment` model.
+- **`PaymentStatus.cancelled`** (only cash payments), a final status.
+- `PaymentMethodInfo.isCash`; `isSupported` now also covers cash.
+- **Upgrading:** exhaustive `switch`es on `PaymentStatus` or
+  `PaymentSheetStatus` need the new `cancelled` / `cashPending` cases.
+
 ## 0.4.1
 
 - **A single method goes straight to its payment** (V2 and V3): when the

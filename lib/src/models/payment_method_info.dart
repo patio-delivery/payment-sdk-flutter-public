@@ -24,8 +24,9 @@ class PaymentMethodInfo {
   }
 
   static const qrCode = 'QR';
+  static const cashCode = 'EFECTIVO';
 
-  /// Stable code from the backend: 'QR', 'CARD'…
+  /// Stable code from the backend: 'QR', 'EFECTIVO', 'CARD'…
   final String code;
   final String name;
   final String? description;
@@ -37,9 +38,13 @@ class PaymentMethodInfo {
 
   bool get isQr => code.toUpperCase() == qrCode;
 
+  /// Paid at a cashier with a code. The widgets only offer it when the app
+  /// handles it (`onCashPayment`, or `acceptCash` in the payment sheet).
+  bool get isCash => code.toUpperCase() == cashCode;
+
   /// Whether this SDK version can process the method. Others are hidden, so
   /// a new backend method never breaks an app on an older SDK.
-  bool get isSupported => isQr;
+  bool get isSupported => isQr || isCash;
 
   Map<String, dynamic> toJson() => {
         'code': code,

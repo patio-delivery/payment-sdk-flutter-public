@@ -5,6 +5,9 @@ enum PaymentStatus {
   failed('ERROR'),
   expired('EXPIRED'),
 
+  /// Only cash payments: a collector cancelled it.
+  cancelled('CANCELLED'),
+
   /// A value this SDK version does not know.
   unknown('UNKNOWN');
 
@@ -23,5 +26,6 @@ enum PaymentStatus {
   }
 
   /// Whether the status can no longer change.
-  bool get isFinal => this == paid || this == failed || this == expired;
+  bool get isFinal =>
+      this == paid || this == failed || this == expired || this == cancelled;
 }
