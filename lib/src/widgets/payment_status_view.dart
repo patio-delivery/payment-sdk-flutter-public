@@ -7,6 +7,7 @@ const defaultPaymentStatusLabels = {
   PaymentStatus.paid: 'Pago confirmado',
   PaymentStatus.failed: 'Pago rechazado',
   PaymentStatus.expired: 'QR vencido',
+  PaymentStatus.cancelled: 'Pago cancelado',
   PaymentStatus.unknown: 'Estado desconocido',
 };
 
@@ -29,6 +30,7 @@ class PaymentStatusView extends StatelessWidget {
       PaymentStatus.paid => (Icons.check_circle, Colors.green.shade700),
       PaymentStatus.failed => (Icons.cancel, colors.error),
       PaymentStatus.expired => (Icons.timer_off, colors.error),
+      PaymentStatus.cancelled => (Icons.block, colors.error),
       PaymentStatus.unknown => (Icons.help_outline, colors.outline),
     };
     return Row(

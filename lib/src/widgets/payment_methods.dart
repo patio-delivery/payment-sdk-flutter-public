@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../core/payment_sdk.dart';
 import '../exceptions/payment_sdk_exception.dart';
+import '../models/cash_payment.dart';
 import '../models/payment_method_info.dart';
 import '../models/payment_status.dart';
 import '../models/qr_payment.dart';
@@ -39,6 +40,10 @@ class PaymentMethods extends StatefulWidget {
     this.qrInstructionsMessage =
         'Tu código QR aparecerá en la siguiente pantalla. '
             'Apúntalo con tu cámara y completa el pago.',
+    this.cashInstructionsTitle = 'Pagarás en caja',
+    this.cashInstructionsMessage =
+        'Te daremos un código de pago. Preséntalo en caja para completar '
+            'tu compra.',
     this.qrTimeout = const Duration(minutes: 5),
     this.confirmTimeout = const Duration(seconds: 20),
     this.pollInterval = const Duration(seconds: 3),
@@ -50,6 +55,7 @@ class PaymentMethods extends StatefulWidget {
     this.onTimeout,
     this.onCancel,
     this.onBack,
+    this.onCashPayment,
     this.autoSelectSingleMethod = true,
   }) : assert(
           orderId != null || createOrderId != null,
@@ -81,6 +87,10 @@ class PaymentMethods extends StatefulWidget {
   final String backLabel;
   final String qrInstructionsTitle;
   final String qrInstructionsMessage;
+
+  /// Shown before creating a cash payment.
+  final String cashInstructionsTitle;
+  final String cashInstructionsMessage;
   final Duration qrTimeout;
   final Duration confirmTimeout;
   final Duration pollInterval;
@@ -102,6 +112,12 @@ class PaymentMethods extends StatefulWidget {
   /// could not be loaded or none is available. Without it only "Reintentar"
   /// is offered.
   final VoidCallback? onBack;
+
+  /// Offers cash ("EFECTIVO") when the account has it, and is called once
+  /// its code exists: the order is then pending until it is paid at the
+  /// cashier. Without it cash is never shown. The SDK keeps showing the code;
+  /// leave whenever you want, as with [onSuccess].
+  final ValueChanged<CashPayment>? onCashPayment;
 
   /// With only one method available, go straight to it (no list, no
   /// instructions) the first time the methods load. Cancelling then shows
@@ -129,6 +145,8 @@ class _PaymentMethodsState extends State<PaymentMethods> {
       backLabel: w.backLabel,
       qrInstructionsTitle: w.qrInstructionsTitle,
       qrInstructionsMessage: w.qrInstructionsMessage,
+      cashInstructionsTitle: w.cashInstructionsTitle,
+      cashInstructionsMessage: w.cashInstructionsMessage,
       qrTimeout: w.qrTimeout,
       confirmTimeout: w.confirmTimeout,
       pollInterval: w.pollInterval,
@@ -140,6 +158,7 @@ class _PaymentMethodsState extends State<PaymentMethods> {
       onTimeout: w.onTimeout,
       onCancel: w.onCancel,
       onBack: w.onBack,
+      onCashPayment: w.onCashPayment,
       autoSelectSingleMethod: w.autoSelectSingleMethod,
     );
   }

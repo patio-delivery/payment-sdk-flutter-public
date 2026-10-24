@@ -237,7 +237,10 @@ class PaymentSession extends ChangeNotifier {
     switch (status) {
       case PaymentStatus.paid:
         _succeed();
+      // A QR is never cancelled (only cash payments are); if one is, it
+      // can't be paid any more.
       case PaymentStatus.failed:
+      case PaymentStatus.cancelled:
         _stopAll();
         _setPhase(PaymentPhase.failed);
       case PaymentStatus.expired:

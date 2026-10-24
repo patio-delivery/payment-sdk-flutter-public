@@ -15,11 +15,12 @@ funciona por dentro, lee el [README](../README.md).
 7. [V2 · `PaymentMethods`](#7-v2--paymentmethods)
 8. [V3 · `PaymentSheet`](#8-v3--paymentsheet)
 9. [Qué significa cada callback](#9-qué-significa-cada-callback)
-10. [Ejemplos completos](#10-ejemplos-completos)
-11. [Sin interfaz: `PaymentSdk`, modelos y widgets sueltos](#11-sin-interfaz-paymentsdk-modelos-y-widgets-sueltos)
-12. [Errores](#12-errores)
-13. [Lista de verificación](#13-lista-de-verificación)
-14. [Problemas comunes](#14-problemas-comunes)
+10. [Pago en efectivo](#10-pago-en-efectivo)
+11. [Ejemplos completos](#11-ejemplos-completos)
+12. [Sin interfaz: `PaymentSdk`, modelos y widgets sueltos](#12-sin-interfaz-paymentsdk-modelos-y-widgets-sueltos)
+13. [Errores](#13-errores)
+14. [Lista de verificación](#14-lista-de-verificación)
+15. [Problemas comunes](#15-problemas-comunes)
 
 ---
 
@@ -33,6 +34,7 @@ funciona por dentro, lee el [README](../README.md).
 | Referencia de pago | Un `orderId` **único por pago** (o una función que lo cree). |
 | Red | Permiso de internet en Android y macOS (ver abajo). |
 | V2 y V3 | El backend debe tener `GET /api/payment-methods`. Sin él, la lista de métodos muestra un error. |
+| Efectivo (opcional) | La cuenta con efectivo habilitado y el backend con `POST /api/cash`. Ver [sección 10](#10-pago-en-efectivo). |
 
 ### Permisos de red
 
@@ -58,7 +60,7 @@ dependencies:
   payment_sdk_flutter:
     git:
       url: https://github.com/patio-delivery/payment-sdk-flutter-public.git
-      ref: v0.4.1            # usa siempre un tag: fija la versión
+      ref: v0.5.0            # usa siempre un tag: fija la versión
 ```
 
 ```bash
@@ -202,6 +204,8 @@ if (version == null) {
 | `backLabel` | `'Volver'` | V2 y V3: volver desde el aviso y botón "Volver" sin métodos. |
 | `qrInstructionsTitle` | `'Prepárate para escanear'` | V2 y V3: título del aviso antes del QR. |
 | `qrInstructionsMessage` | `'Tu código QR aparecerá…'` | V2 y V3: texto del aviso. |
+| `cashInstructionsTitle` | `'Pagarás en caja'` | V2 y V3: título del aviso antes de crear el código de efectivo. |
+| `cashInstructionsMessage` | `'Te daremos un código de pago…'` | V2 y V3: texto de ese aviso. |
 
 **Tiempos y tamaño**
 
@@ -218,7 +222,8 @@ if (version == null) {
 **Callbacks** (ver [sección 9](#9-qué-significa-cada-callback))
 
 `onSuccess`, `onCancel`, `onTimeout`, `onBack`, `onError`,
-`onStatusChanged`, `onMethodSelected`.
+`onStatusChanged`, `onMethodSelected` y `onCashPayment` (efectivo, ver
+[sección 10](#10-pago-en-efectivo)).
 
 ### Qué hace cada versión dentro de `PaymentFlow`
 
@@ -227,6 +232,8 @@ if (version == null) {
 | V1 | Muestra el QR de inmediato. Con `createOrderId`, primero "Preparando tu pago…"; si falla, "Reintentar" y "Cancelar". |
 | V2 | Carga los métodos de la cuenta. Si hay **uno solo**, va directo a su QR; si hay varios, el cliente elige, aparece el aviso y luego el QR. |
 | V3 | Muestra el botón "Pagar Bs 150.00" (o abre directo con `autoOpen`). La ventana muestra la lista, o directamente el QR si hay un solo método, y se cierra sola al pagar o al vencer. |
+
+Con `onCashPayment`, V2 y V3 ofrecen además el efectivo si la cuenta lo tiene; V1 es solo QR.
 
 ---
 
@@ -294,10 +301,13 @@ PaymentMethods(
 | `title` | no | `'¿Con qué vas a pagar hoy?'` | Título de la lista. `null` lo oculta. |
 | `confirmLabel`, `backLabel`, `qrInstructionsTitle`, `qrInstructionsMessage` | no | ver sección 5 | Textos. |
 | `qrTimeout`, `confirmTimeout`, `pollInterval`, `qrSize` | no | 5 min / 20 s / 3 s / 240 | Igual que V1. |
-| `autoSelectSingleMethod` | no | `true` | Con un solo método disponible, va directo a su cobro. |
+| `autoSelectSingleMethod` | no | `true` | Con un solo método QR disponible, va directo a su cobro. |
+| `cashInstructionsTitle`, `cashInstructionsMessage` | no | ver sección 5 | Aviso antes de crear el código de efectivo. |
+| `onCashPayment` | no | — | Ofrece efectivo y avisa cuando el código existe. Ver [sección 10](#10-pago-en-efectivo). |
 | `onMethodSelected`, `onSuccess`, `onError`, `onStatusChanged`, `onTimeout`, `onCancel`, `onBack` | no | — | Ver [sección 9](#9-qué-significa-cada-callback). |
 
-- Solo se muestran los métodos que esta versión del SDK sabe cobrar (hoy, QR).
+- Solo se muestran los métodos que esta versión del SDK sabe cobrar: QR, y
+  efectivo si pasas `onCashPayment`.
 - **Un solo método:** la primera vez va directo a su QR. Si el cliente
   cancela, ve la lista (con ese método) en vez de generarse otro QR solo.
 - `onCancel` en V2: el cliente canceló un QR (verificado sin pagar) y la vista
@@ -319,9 +329,10 @@ final result = await PaymentSheet.show(
 );
 
 switch (result.status) {
-  case PaymentSheetStatus.paid:      irAPantallaDeExito(result.payment!);
-  case PaymentSheetStatus.expired:   mostrarAviso('El QR venció');
-  case PaymentSheetStatus.cancelled: break; // cerró sin pagar
+  case PaymentSheetStatus.paid:        irAPantallaDeExito(result.payment!);
+  case PaymentSheetStatus.expired:     mostrarAviso('El QR venció');
+  case PaymentSheetStatus.cancelled:   break; // cerró sin pagar
+  case PaymentSheetStatus.cashPending: irAPagaEnCaja(result.cashPayment!); // solo con acceptCash
 }
 ```
 
@@ -336,12 +347,19 @@ switch (result.status) {
 | `confirmLabel`, `backLabel`, `qrInstructionsTitle`, `qrInstructionsMessage` | no | ver sección 5 | Textos. |
 | `qrTimeout`, `confirmTimeout`, `pollInterval`, `qrSize` | no | 5 min / 20 s / 3 s / 240 | Igual que V1. |
 | `successDelay` | no | 2 s | Cuánto se ve "¡Pago confirmado!" antes de cerrar. |
-| `autoSelectSingleMethod` | no | `true` | Con un solo método disponible, la ventana abre directo en su QR. |
+| `autoSelectSingleMethod` | no | `true` | Con un solo método QR disponible, la ventana abre directo en su QR. |
+| `acceptCash` | no | `false` | Ofrece efectivo si la cuenta lo tiene. Ver [sección 10](#10-pago-en-efectivo). |
+| `cashInstructionsTitle`, `cashInstructionsMessage` | no | ver sección 5 | Aviso antes de crear el código de efectivo. |
 | `onMethodSelected`, `onError`, `onStatusChanged` | no | — | Ver [sección 9](#9-qué-significa-cada-callback). |
 
-**Resultado (`PaymentSheetResult`):** `status` (`paid`, `expired` o
-`cancelled`), `payment` (el pago confirmado, solo con `paid`), `method` (el
-método elegido) e `isPaid`.
+**Resultado (`PaymentSheetResult`):** `status` (`paid`, `expired`,
+`cancelled` o `cashPending`), `payment` (el pago confirmado, solo con `paid`),
+`cashPayment` (el código, solo con `cashPending`), `method` (el método
+elegido), `isPaid` e `isCashPending`.
+
+Desde la 0.5.0 `PaymentSheetStatus` tiene `cashPending`: si haces un `switch`
+exhaustivo sobre `result.status`, agrégale ese caso (sin `acceptCash` nunca
+llega).
 
 - Pantallas de menos de 600 px: sube desde abajo. Desde 600 px: ventana
   centrada.
@@ -363,13 +381,64 @@ método elegido) e `isPaid`.
 | `onError(PaymentSdkException)` | En cada error (al generar o al consultar). La vista ya lo muestra; úsalo para registrar. | ✅ | ✅ | ✅ |
 | `onStatusChanged(PaymentStatus)` | Cada cambio de estado del QR. | ✅ | ✅ | ✅ |
 | `onMethodSelected(PaymentMethodInfo)` | El cliente confirmó un método, antes de crear la orden. | — | ✅ | ✅ |
+| `onCashPayment(CashPayment)` | El código de efectivo ya existe: la orden queda pendiente de pago en caja. Pasarlo es lo que activa el efectivo. | — | ✅ | ✅ (`PaymentFlow`) / `cashPending` (`PaymentSheet` con `acceptCash`) |
 
 **Importante:** no despaches un pedido solo por `onSuccess`. Confirma el pago
 también desde tu servidor.
 
 ---
 
-## 10. Ejemplos completos
+## 10. Pago en efectivo
+
+El cliente elige **"Pago en efectivo"**, recibe un **código** (por ejemplo
+`EF-7K3M9QX2`) y lo presenta en caja. El pedido queda **pendiente** hasta que
+el cajero registra el cobro o lo cancela: el código **no vence**.
+
+- **Es opcional por app.** El SDK solo ofrece efectivo si tu app lo maneja:
+  `onCashPayment` en `PaymentFlow` o `PaymentMethods`, o `acceptCash: true` en
+  `PaymentSheet.show`. Sin eso no aparece, aunque la cuenta lo tenga
+  habilitado.
+- **La cuenta debe tenerlo habilitado** en Nexus Payments.
+- **Nunca se elige solo:** aunque sea el único método, el cliente lo toca y
+  confirma el aviso "Pagarás en caja" (deja un pedido pendiente).
+- **Con el código en pantalla no hay "Volver":** el pedido ya existe.
+- **Pedirlo otra vez** para el mismo `orderId` pendiente devuelve el mismo
+  código, así que "Reintentar" nunca duplica el pago.
+- En `createOrderId(method)`, `method.isCash` te dice que la orden es en
+  efectivo.
+
+| Versión | Qué pasa |
+|---|---|
+| V1 | Solo QR. |
+| V2 | Muestra el código y llama `onCashPayment(CashPayment)`. La vista sigue mostrando el código: sal cuando quieras, igual que después de `onSuccess`. |
+| V3 | Muestra el código con un botón "Listo". "Listo" o cerrar la ventana devuelve `cashPending` con `result.cashPayment`; con `PaymentFlow` se llama `onCashPayment`. |
+
+```dart
+PaymentFlow(
+  version: PaymentVersion.v2,
+  payments: payments,
+  amount: carrito.total,
+  createOrderId: (method) async {
+    final orden = await miBackend.crearOrdenPendiente(carrito, efectivo: method.isCash);
+    return orden.id;
+  },
+  descriptionFor: (orderId) => 'Pedido $orderId',
+  onSuccess: (payment) => irAPantallaDeExito(payment),
+  onCashPayment: (cash) {
+    imprimirTicket(codigo: cash.code, monto: cash.amount);
+    irAPantallaPagaEnCaja(cash); // muestra cash.code
+  },
+)
+```
+
+**Saber si ya se cobró:** `payments.getCashPaymentStatus(orderId)` devuelve
+`pending`, `paid` o `cancelled`. Tu servidor también recibe la notificación de
+la cuenta cuando se cobra o se cancela; despacha solo cuando el pago esté
+confirmado.
+
+---
+
+## 11. Ejemplos completos
 
 ### La orden ya existe (por ejemplo, la crea tu backend antes de cobrar)
 
@@ -453,7 +522,7 @@ pago" y deja reintentar.
 
 ---
 
-## 11. Sin interfaz: `PaymentSdk`, modelos y widgets sueltos
+## 12. Sin interfaz: `PaymentSdk`, modelos y widgets sueltos
 
 Para armar una pantalla propia o cobrar sin los componentes del SDK.
 
@@ -464,6 +533,8 @@ Para armar una pantalla propia o cobrar sin los componentes del SDK.
 | `watchPaymentStatus(orderId, {interval = 3 s, timeout = 15 min})` | `Stream<PaymentStatus>` | Emite solo cambios y se cierra en un estado final. Sigue tras errores reintentables. |
 | `getPayment(paymentId)` | `QrPayment` | El pago guardado, sin consultar al proveedor. |
 | `getPaymentMethods()` | `List<PaymentMethodInfo>` | Métodos habilitados de la cuenta, en orden. |
+| `createCashPayment({orderId, amount, description = ''})` | `CashPayment` | Crea el pago en efectivo y su código. El mismo `orderId` pendiente devuelve el mismo código. Si la cuenta no tiene efectivo: `ValidationException`. |
+| `getCashPaymentStatus(orderId)` | `PaymentStatus` | Estado del pago en efectivo: `pending`, `paid` o `cancelled`. Orden desconocida: `PaymentNotFoundException`. |
 | `dispose()` | — | Cierra las conexiones. |
 
 ```dart
@@ -481,8 +552,9 @@ final sub = payments.watchPaymentStatus('ORDER-123').listen((status) {
 | Modelo | Campos |
 |---|---|
 | `QrPayment` | `paymentId`, `qrImageBase64` (PNG en Base64), `qrImageBytes` / `hasQrImage`, `status`, `dueDate`. |
-| `PaymentStatus` | `pending`, `paid`, `failed`, `expired` y `unknown` (un estado nuevo que esta versión no conoce). `isFinal` indica si ya no cambiará. |
-| `PaymentMethodInfo` | `code` (`QR`, `CARD`…), `name`, `description`, `iconUrl`, `currency`, `position`, `isQr`, `isSupported`. |
+| `CashPayment` | `code`, `orderId`, `amount`, `currency`, `status`, `description`, `createdAt`, `isPending`. |
+| `PaymentStatus` | `pending`, `paid`, `failed`, `expired`, `cancelled` (solo efectivo) y `unknown` (un estado nuevo que esta versión no conoce). `isFinal` indica si ya no cambiará. |
+| `PaymentMethodInfo` | `code` (`QR`, `EFECTIVO`, `CARD`…), `name`, `description`, `iconUrl`, `currency`, `position`, `isQr`, `isCash`, `isSupported`. |
 | `PaymentVersion` | `v1`, `v2`, `v3`; `tryParse(String?)` y `label`. |
 
 ### Widgets sueltos
@@ -497,7 +569,7 @@ final sub = payments.watchPaymentStatus('ORDER-123').listen((status) {
 
 ---
 
-## 12. Errores
+## 13. Errores
 
 Todo error es un `PaymentSdkException` con `message`, `statusCode`, `details`
 e `isRetryable`. Los componentes ya los muestran; para manejarlos tú, usa
@@ -517,7 +589,7 @@ e `isRetryable`. Los componentes ya los muestran; para manejarlos tú, usa
 
 ---
 
-## 13. Lista de verificación
+## 14. Lista de verificación
 
 - [ ] Flutter 3.24 o superior.
 - [ ] Dependencia por `git` con un `ref` de tag; `pubspec.lock` commiteado.
@@ -529,11 +601,12 @@ e `isRetryable`. Los componentes ya los muestran; para manejarlos tú, usa
 - [ ] `onSuccess`, `onCancel` y `onTimeout` llevan al cliente a la pantalla correcta.
 - [ ] V2: `onBack` si tu pantalla no tiene otro botón de volver.
 - [ ] V2/V3: el backend tiene `GET /api/payment-methods`.
+- [ ] Efectivo: `onCashPayment` (o `acceptCash`) muestra el código al cliente y tu sistema deja la orden pendiente de pago en caja.
 - [ ] Tu servidor confirma el pago antes de despachar.
 
 ---
 
-## 14. Problemas comunes
+## 15. Problemas comunes
 
 | Síntoma | Causa | Solución |
 |---|---|---|
@@ -544,3 +617,5 @@ e `isRetryable`. Los componentes ya los muestran; para manejarlos tú, usa
 | `pub get` no toma la versión nueva | El `ref` sigue en el tag anterior. | Cambia el `ref` y corre `flutter pub get`. |
 | `Repository not found` al instalar | La máquina no tiene acceso al repositorio. | Revisa la URL y el acceso a GitHub. |
 | "No hay métodos de pago disponibles" | La cuenta no tiene métodos activos. | Actívalos en Nexus Payments. |
+| No aparece "Pago en efectivo" | Tu app no pasa `onCashPayment` (o `acceptCash`), o la cuenta no lo tiene habilitado. | Pásalo y pide que lo habiliten en Nexus Payments. |
+| "El pago en efectivo no está habilitado para este comercio" | La cuenta no tiene efectivo configurado. | Pide que lo habiliten en Nexus Payments. |
