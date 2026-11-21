@@ -1,5 +1,44 @@
 # Changelog
 
+## 0.6.0
+
+- **Card payments on a physical POS ("CARD")** in V2 and V3: the customer pays
+  on a Bancard POS in the device's network.
+  - **Opt-in per device:** `card: CardOptions(terminalId: 'TOTEM100')` in
+    `PaymentFlow`, `PaymentMethods` and `PaymentSheet.show`, with
+    `onCardPayment` in `PaymentFlow` and `PaymentMethods`. Devices without it
+    (a phone, a device without a POS) never see card.
+  - **The POS is configured in Nexus Payments**, per device
+    (`GET /card/terminals/:code`): its IP, port and connection, `BRIDGE`
+    (through the local API POS Bancard service, which now gets the POS's IP
+    with every sale) or `DIRECT` (straight to the POS). Editing it there
+    applies on the next payment, without releasing the app.
+    `CardOptions.manual` and `CardOptions.custom` configure it in the app.
+  - Card is hidden when the terminal isn't registered or its POS (or the
+    local service) doesn't answer, and is never chosen on its own.
+  - Every payment is registered before touching the POS and its result is
+    recorded (`POST /card`, `POST /card/:id/result`). An order already paid by
+    card is never charged again. While the POS charges there's no going back,
+    and V3's window doesn't close.
+  - Results: approved (`onCardPayment`, or `PaymentSheetStatus.paid` with
+    `result.cardPayment`), rejected (retry or another method), POS unreachable
+    (nothing charged, retry), or answer lost (may have been charged: never
+    retried from the SDK).
+  - Texts: `cardInstructionsTitle`, `cardInstructionsMessage`.
+- **`PaymentSdk.chargeCard`** for apps with their own screens, plus
+  `getCardTerminal`, `resolveCardTerminal`, `createCardPayment`,
+  `reportCardResult` and `getCardPaymentStatus`.
+- `CardPayment`, `CardOptions`, `CardTerminal` (with `BancardBridgeTerminal`
+  and `BancardDirectTerminal`), `CardTerminalConfig`, `CardConnection`,
+  `CardChargeResult`, `BancardResponse` and `CardTerminalException`
+  (`outcomeUnknown` says whether the customer may have been charged).
+- `PaymentMethodInfo.isCard`; `isSupported` now also covers card.
+- **`onBackToMethods`** in `PaymentFlow` (V2) and `PaymentMethods`: the
+  methods list shows again after a method was chosen (a QR cancelled, a
+  rejected card…), so the app can re-enable what it locked while paying.
+- **Upgrading:** nothing changes without `card`. `PaymentSheetResult.payment`
+  is null when the sheet ends `paid` by card; read `cardPayment` then.
+
 ## 0.5.0
 
 - **Cash payments ("EFECTIVO")** in V2 and V3: the customer gets a code

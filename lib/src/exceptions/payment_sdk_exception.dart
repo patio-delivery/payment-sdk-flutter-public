@@ -103,3 +103,24 @@ class StatusWatchTimeoutException extends PaymentSdkException {
 
   final PaymentStatus? lastStatus;
 }
+
+/// The card terminal failed: the POS, or the local service in front of it
+/// (totem_bancard_pos), could not be reached or answered something
+/// unreadable.
+class CardTerminalException extends PaymentSdkException {
+  const CardTerminalException(
+    super.message, {
+    required this.outcomeUnknown,
+    super.statusCode,
+    super.details,
+    super.cause,
+  });
+
+  /// True when the sale may have reached the POS, so the customer may have
+  /// been charged: never charge again without checking the POS's receipts.
+  /// False when the POS was never reached, and charging again is safe.
+  final bool outcomeUnknown;
+
+  @override
+  bool get isRetryable => !outcomeUnknown;
+}

@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../card/card_options.dart';
 import '../core/payment_sdk.dart';
 import '../exceptions/payment_sdk_exception.dart';
+import '../models/card_payment.dart';
 import '../models/cash_payment.dart';
 import '../models/payment_method_info.dart';
 import '../models/payment_status.dart';
@@ -44,6 +46,10 @@ class PaymentMethods extends StatefulWidget {
     this.cashInstructionsMessage =
         'Te daremos un código de pago. Preséntalo en caja para completar '
             'tu compra.',
+    this.cardInstructionsTitle = 'Paga con tarjeta',
+    this.cardInstructionsMessage =
+        'Acerca, inserta o desliza tu tarjeta en el POS y sigue sus '
+            'indicaciones.',
     this.qrTimeout = const Duration(minutes: 5),
     this.confirmTimeout = const Duration(seconds: 20),
     this.pollInterval = const Duration(seconds: 3),
@@ -56,10 +62,17 @@ class PaymentMethods extends StatefulWidget {
     this.onCancel,
     this.onBack,
     this.onCashPayment,
+    this.card,
+    this.onCardPayment,
+    this.onBackToMethods,
     this.autoSelectSingleMethod = true,
-  }) : assert(
+  })  : assert(
           orderId != null || createOrderId != null,
           'PaymentMethods needs an orderId or a createOrderId',
+        ),
+        assert(
+          card == null || onCardPayment != null,
+          'card needs onCardPayment to know when the POS approved',
         );
 
   final PaymentSdk payments;
@@ -91,6 +104,10 @@ class PaymentMethods extends StatefulWidget {
   /// Shown before creating a cash payment.
   final String cashInstructionsTitle;
   final String cashInstructionsMessage;
+
+  /// Shown before charging on the POS.
+  final String cardInstructionsTitle;
+  final String cardInstructionsMessage;
   final Duration qrTimeout;
   final Duration confirmTimeout;
   final Duration pollInterval;
@@ -118,6 +135,20 @@ class PaymentMethods extends StatefulWidget {
   /// cashier. Without it cash is never shown. The SDK keeps showing the code;
   /// leave whenever you want, as with [onSuccess].
   final ValueChanged<CashPayment>? onCashPayment;
+
+  /// Offers card ("CARD") on a physical POS when the account has it and the
+  /// POS answers. Without it card is never shown.
+  final CardOptions? card;
+
+  /// Called once the POS approved a card payment, with what it answered
+  /// (authorization, masked card…) for the receipt. The SDK keeps showing
+  /// "¡Pago aprobado!"; leave whenever you want, as with [onSuccess].
+  final ValueChanged<CardPayment>? onCardPayment;
+
+  /// Called whenever the methods list shows again after a method was chosen
+  /// (a QR cancelled, a rejected card…), so the app can re-enable what it
+  /// locked while paying (its own back button, a coupon field…).
+  final VoidCallback? onBackToMethods;
 
   /// With only one method available, go straight to it (no list, no
   /// instructions) the first time the methods load. Cancelling then shows
@@ -147,6 +178,8 @@ class _PaymentMethodsState extends State<PaymentMethods> {
       qrInstructionsMessage: w.qrInstructionsMessage,
       cashInstructionsTitle: w.cashInstructionsTitle,
       cashInstructionsMessage: w.cashInstructionsMessage,
+      cardInstructionsTitle: w.cardInstructionsTitle,
+      cardInstructionsMessage: w.cardInstructionsMessage,
       qrTimeout: w.qrTimeout,
       confirmTimeout: w.confirmTimeout,
       pollInterval: w.pollInterval,
@@ -159,6 +192,9 @@ class _PaymentMethodsState extends State<PaymentMethods> {
       onCancel: w.onCancel,
       onBack: w.onBack,
       onCashPayment: w.onCashPayment,
+      card: w.card,
+      onCardPayment: w.onCardPayment,
+      onBackToMethods: w.onBackToMethods,
       autoSelectSingleMethod: w.autoSelectSingleMethod,
     );
   }

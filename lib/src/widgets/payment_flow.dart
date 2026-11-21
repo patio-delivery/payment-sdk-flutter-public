@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 
+import '../card/card_options.dart';
 import '../core/payment_sdk.dart';
 import '../exceptions/payment_sdk_exception.dart';
+import '../models/card_payment.dart';
 import '../models/cash_payment.dart';
 import '../models/payment_method_info.dart';
 import '../models/payment_status.dart';
@@ -60,6 +62,10 @@ class PaymentFlow extends StatelessWidget {
     this.cashInstructionsMessage =
         'Te daremos un código de pago. Preséntalo en caja para completar '
             'tu compra.',
+    this.cardInstructionsTitle = 'Paga con tarjeta',
+    this.cardInstructionsMessage =
+        'Acerca, inserta o desliza tu tarjeta en el POS y sigue sus '
+            'indicaciones.',
     this.autoOpen = false,
     this.qrTimeout = const Duration(minutes: 5),
     this.confirmTimeout = const Duration(seconds: 20),
@@ -74,10 +80,17 @@ class PaymentFlow extends StatelessWidget {
     this.onCancel,
     this.onBack,
     this.onCashPayment,
+    this.card,
+    this.onCardPayment,
+    this.onBackToMethods,
     this.autoSelectSingleMethod = true,
-  }) : assert(
+  })  : assert(
           orderId != null || createOrderId != null,
           'PaymentFlow needs an orderId or a createOrderId',
+        ),
+        assert(
+          card == null || onCardPayment != null,
+          'card needs onCardPayment to know when the POS approved',
         );
 
   /// What the customer sees. Changing it rebuilds the payment from scratch.
@@ -117,6 +130,10 @@ class PaymentFlow extends StatelessWidget {
   final String cashInstructionsTitle;
   final String cashInstructionsMessage;
 
+  /// V2 and V3: shown before charging on the POS.
+  final String cardInstructionsTitle;
+  final String cardInstructionsMessage;
+
   /// V3: open the payment window right away instead of showing the button.
   final bool autoOpen;
   final Duration qrTimeout;
@@ -152,6 +169,24 @@ class PaymentFlow extends StatelessWidget {
   /// with the code on screen. V1 is QR only.
   final ValueChanged<CashPayment>? onCashPayment;
 
+  /// V2 and V3: offers card ("CARD") on a physical POS when the account has
+  /// it and the POS answers; usually just the device's code:
+  /// `CardOptions(terminalId: 'TOTEM100')`. Without it card is never shown.
+  /// V1 is QR only.
+  final CardOptions? card;
+
+  /// V2 and V3: called once the POS approved a card payment, with what it
+  /// answered (authorization, masked card…) for the receipt. It plays the
+  /// role of [onSuccess] for card. In V3 it is called when the window
+  /// closes.
+  final ValueChanged<CardPayment>? onCardPayment;
+
+  /// V2: called whenever the methods list shows again after a method was
+  /// chosen (a QR cancelled, a rejected card…), so the app can re-enable what
+  /// it locked while paying. V3's window reports [onCancel] when it closes
+  /// unpaid instead.
+  final VoidCallback? onBackToMethods;
+
   /// V2 and V3: with only one method available, go straight to it the
   /// first time the methods load, without the list or the instructions.
   final bool autoSelectSingleMethod;
@@ -174,6 +209,8 @@ class PaymentFlow extends StatelessWidget {
             qrInstructionsMessage: qrInstructionsMessage,
             cashInstructionsTitle: cashInstructionsTitle,
             cashInstructionsMessage: cashInstructionsMessage,
+            cardInstructionsTitle: cardInstructionsTitle,
+            cardInstructionsMessage: cardInstructionsMessage,
             qrTimeout: qrTimeout,
             confirmTimeout: confirmTimeout,
             pollInterval: pollInterval,
@@ -186,6 +223,9 @@ class PaymentFlow extends StatelessWidget {
             onCancel: onCancel,
             onBack: onBack,
             onCashPayment: onCashPayment,
+            card: card,
+            onCardPayment: onCardPayment,
+            onBackToMethods: onBackToMethods,
             autoSelectSingleMethod: autoSelectSingleMethod,
           ),
         PaymentVersion.v3 => _SheetLauncher(flow: this),
@@ -329,7 +369,10 @@ class _SheetLauncherState extends State<_SheetLauncher> {
       qrInstructionsMessage: flow.qrInstructionsMessage,
       cashInstructionsTitle: flow.cashInstructionsTitle,
       cashInstructionsMessage: flow.cashInstructionsMessage,
+      cardInstructionsTitle: flow.cardInstructionsTitle,
+      cardInstructionsMessage: flow.cardInstructionsMessage,
       acceptCash: flow.onCashPayment != null,
+      card: flow.card,
       qrTimeout: flow.qrTimeout,
       confirmTimeout: flow.confirmTimeout,
       pollInterval: flow.pollInterval,
@@ -343,7 +386,11 @@ class _SheetLauncherState extends State<_SheetLauncher> {
     if (mounted) setState(() => _open = false);
     switch (result.status) {
       case PaymentSheetStatus.paid:
-        flow.onSuccess?.call(result.payment!);
+        if (result.cardPayment case final card?) {
+          flow.onCardPayment?.call(card);
+        } else {
+          flow.onSuccess?.call(result.payment!);
+        }
       case PaymentSheetStatus.expired:
         flow.onTimeout?.call();
       case PaymentSheetStatus.cashPending:
