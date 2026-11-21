@@ -120,15 +120,16 @@ class BancardDirectTerminal extends CardTerminal {
   @override
   Future<bool> isReachable() async {
     try {
-      // Any HTTP answer means the POS is there; only a failed connection
-      // means it isn't.
       await _dio.get<Object?>(
         '$_base/',
         options: _quick.copyWith(validateStatus: (_) => true),
       );
       return true;
-    } on DioException {
-      return false;
+    } on DioException catch (e) {
+      // Only a failed connection means the POS isn't there. One that took
+      // the connection is, even if it then closed it without an answer
+      // (Linkser's POS only answers /sale) or was too busy to answer.
+      return !_failedToConnect(e);
     }
   }
 
@@ -352,6 +353,12 @@ final _quick = Options(
   sendTimeout: const Duration(seconds: 3),
   receiveTimeout: const Duration(seconds: 3),
 );
+
+/// The connection itself failed: nothing listening, no route to the IP or
+/// no answer to connect. Anything later means something took it.
+bool _failedToConnect(DioException e) =>
+    e.type == DioExceptionType.connectionTimeout ||
+    e.type == DioExceptionType.connectionError;
 
 String _trimSlash(String url) {
   final value = url.trim();

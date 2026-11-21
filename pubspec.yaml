@@ -4,7 +4,7 @@ description: >-
   cards on a Bancard POS, queries their status and provides a reusable
   checkout widget. Talks only to the
   Nexus Payments backend; payment providers stay behind it.
-version: 0.6.0
+version: 0.6.1
 publish_to: none
 
 environment:
