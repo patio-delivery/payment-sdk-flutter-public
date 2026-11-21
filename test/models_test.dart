@@ -99,9 +99,11 @@ void main() {
       expect(method.position, 0);
     });
 
-    test('only QR is supported by this SDK version', () {
+    test('QR, EFECTIVO and CARD are supported; unknown codes are hidden', () {
       expect(PaymentMethodInfo.fromJson({'code': 'qr'}).isSupported, isTrue);
-      expect(PaymentMethodInfo.fromJson({'code': 'CARD'}).isSupported, isFalse);
+      expect(
+          PaymentMethodInfo.fromJson({'code': 'EFECTIVO'}).isSupported, isTrue);
+      expect(PaymentMethodInfo.fromJson({'code': 'CARD'}).isSupported, isTrue);
       expect(PaymentMethodInfo.fromJson({'code': 'NEW'}).isSupported, isFalse);
     });
   });

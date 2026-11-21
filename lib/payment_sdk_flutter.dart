@@ -7,9 +7,14 @@
 /// ```
 library;
 
+export 'src/card/bancard_terminals.dart'
+    show BancardBridgeTerminal, BancardDirectTerminal, BancardResponse;
+export 'src/card/card_options.dart';
+export 'src/card/card_terminal.dart';
 export 'src/config/payment_sdk_config.dart';
 export 'src/core/payment_sdk.dart';
 export 'src/exceptions/payment_sdk_exception.dart';
+export 'src/models/card_payment.dart';
 export 'src/models/cash_payment.dart';
 export 'src/models/payment_method_info.dart';
 export 'src/models/payment_status.dart';

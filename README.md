@@ -42,7 +42,8 @@ API key. Nexus Payments es la fuente de verdad del estado de cada pago.
 | **`PaymentSheet`** (V3) | Ventana de pago propia del SDK que devuelve cómo terminó. |
 | **`PaymentSdk`** | API sin interfaz: generar QR, consultar y escuchar el estado, listar métodos. |
 | **Pago en efectivo** | V2 y V3 pueden ofrecer "EFECTIVO" (si tu app lo activa): el cliente recibe un código y paga en caja. |
-| **Modelos y errores** | `QrPayment`, `CashPayment`, `PaymentStatus`, `PaymentMethodInfo`, `PaymentVersion` y la jerarquía `PaymentSdkException`. |
+| **Pago con tarjeta (POS)** | V2 y V3 pueden ofrecer "Tarjeta" en equipos con un POS Bancard (si tu app lo activa con el código del equipo): el cliente paga en el POS. |
+| **Modelos y errores** | `QrPayment`, `CashPayment`, `CardPayment`, `PaymentStatus`, `PaymentMethodInfo`, `PaymentVersion` y la jerarquía `PaymentSdkException`. |
 | **Widgets sueltos** | `PaymentQrView` (la imagen del QR) y `PaymentStatusView` (ícono y texto de un estado). |
 
 Depende solo de `dio` (HTTP) y `clock` (hora testeable). No usa librerías de
@@ -134,6 +135,7 @@ pueden elegir desde configuración (`'v1'`, `'v2'`, `'v3'` u `'off'`). Con
 | Un solo método (V2/V3) | Directo el QR de ese método, sin lista | Igual que "Esperando pago" |
 | Sin métodos (V2/V3) | El error o "No hay métodos de pago disponibles" | Reintentar, **Volver** |
 | Efectivo (V2/V3) | Aviso "Pagarás en caja", luego el **código** para presentar en caja | V3: **Listo**. El pedido queda pendiente hasta que se cobra |
+| Tarjeta (V2/V3) | Aviso "Paga con tarjeta", "Sigue las instrucciones del POS" y luego "¡Pago aprobado!" o "Tarjeta rechazada" | Mientras el POS cobra, ninguno; rechazada: Reintentar, Otro método |
 
 ### 3.4 Tiempos y reglas
 
@@ -183,7 +185,7 @@ dependencies:
   payment_sdk_flutter:
     git:
       url: https://github.com/patio-delivery/payment-sdk-flutter-public.git
-      ref: v0.4.1
+      ref: v0.6.0
 ```
 
 ```dart
@@ -208,9 +210,10 @@ flutter analyze
 flutter test
 ```
 
-Las pruebas no usan un servidor real: las respuestas HTTP se simulan con
-`test/helpers/fake_adapter.dart`. Cubren el núcleo, cada versión, `PaymentFlow`
-y las vistas en 6 tipos de pantalla.
+Las pruebas no usan un servidor real ni un POS: las respuestas HTTP se simulan
+con `test/helpers/fake_adapter.dart`. Cubren el núcleo, cada versión,
+`PaymentFlow`, el efectivo, la tarjeta en POS y las vistas en 6 tipos de
+pantalla.
 
 ---
 
@@ -222,13 +225,17 @@ y las vistas en 6 tipos de pantalla.
 - **No confíes solo en `onSuccess` para despachar un pedido:** confirma el pago
   también desde tu servidor.
 - Usa `https` fuera de desarrollo.
+- **Tarjeta:** las peticiones al POS no llevan tu API key, y la tarjeta nunca
+  se guarda completa (solo BIN y últimos 4).
 
 ---
 
 ## 8. Limitaciones
 
-- **QR y efectivo.** V2 y V3 ya están preparadas para más métodos: cuando
-  estén disponibles aparecerán sin cambiar las apps. El efectivo solo aparece
-  si tu app lo activa (`onCashPayment` o `acceptCash`); ver
-  [doc/INTEGRACION.md](doc/INTEGRACION.md#10-pago-en-efectivo).
+- **QR, efectivo y tarjeta en POS Bancard.** V2 y V3 ya están preparadas para
+  más métodos: cuando estén disponibles aparecerán sin cambiar las apps. El
+  efectivo solo aparece si tu app lo activa (`onCashPayment` o `acceptCash`;
+  ver [doc/INTEGRACION.md](doc/INTEGRACION.md#10-pago-en-efectivo)) y la
+  tarjeta solo con `card` en un equipo con POS (ver
+  [doc/INTEGRACION.md](doc/INTEGRACION.md#11-pago-con-tarjeta-pos)).
 - **Textos por defecto en español** (configurables en V2, V3 y `PaymentFlow`).

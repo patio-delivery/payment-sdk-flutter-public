@@ -16,11 +16,12 @@ funciona por dentro, lee el [README](../README.md).
 8. [V3 · `PaymentSheet`](#8-v3--paymentsheet)
 9. [Qué significa cada callback](#9-qué-significa-cada-callback)
 10. [Pago en efectivo](#10-pago-en-efectivo)
-11. [Ejemplos completos](#11-ejemplos-completos)
-12. [Sin interfaz: `PaymentSdk`, modelos y widgets sueltos](#12-sin-interfaz-paymentsdk-modelos-y-widgets-sueltos)
-13. [Errores](#13-errores)
-14. [Lista de verificación](#14-lista-de-verificación)
-15. [Problemas comunes](#15-problemas-comunes)
+11. [Pago con tarjeta (POS)](#11-pago-con-tarjeta-pos)
+12. [Ejemplos completos](#12-ejemplos-completos)
+13. [Sin interfaz: `PaymentSdk`, modelos y widgets sueltos](#13-sin-interfaz-paymentsdk-modelos-y-widgets-sueltos)
+14. [Errores](#14-errores)
+15. [Lista de verificación](#15-lista-de-verificación)
+16. [Problemas comunes](#16-problemas-comunes)
 
 ---
 
@@ -35,6 +36,7 @@ funciona por dentro, lee el [README](../README.md).
 | Red | Permiso de internet en Android y macOS (ver abajo). |
 | V2 y V3 | El backend debe tener `GET /api/payment-methods`. Sin él, la lista de métodos muestra un error. |
 | Efectivo (opcional) | La cuenta con efectivo habilitado y el backend con `POST /api/cash`. Ver [sección 10](#10-pago-en-efectivo). |
+| Tarjeta (opcional) | Un POS Bancard en la misma red del equipo, la cuenta con tarjeta habilitada y el equipo registrado como terminal en Nexus Payments. Ver [sección 11](#11-pago-con-tarjeta-pos). |
 
 ### Permisos de red
 
@@ -60,7 +62,7 @@ dependencies:
   payment_sdk_flutter:
     git:
       url: https://github.com/patio-delivery/payment-sdk-flutter-public.git
-      ref: v0.5.0            # usa siempre un tag: fija la versión
+      ref: v0.6.0            # usa siempre un tag: fija la versión
 ```
 
 ```bash
@@ -206,6 +208,8 @@ if (version == null) {
 | `qrInstructionsMessage` | `'Tu código QR aparecerá…'` | V2 y V3: texto del aviso. |
 | `cashInstructionsTitle` | `'Pagarás en caja'` | V2 y V3: título del aviso antes de crear el código de efectivo. |
 | `cashInstructionsMessage` | `'Te daremos un código de pago…'` | V2 y V3: texto de ese aviso. |
+| `cardInstructionsTitle` | `'Paga con tarjeta'` | V2 y V3: título del aviso antes de cobrar en el POS. |
+| `cardInstructionsMessage` | `'Acerca, inserta o desliza tu tarjeta…'` | V2 y V3: texto de ese aviso. |
 
 **Tiempos y tamaño**
 
@@ -222,8 +226,16 @@ if (version == null) {
 **Callbacks** (ver [sección 9](#9-qué-significa-cada-callback))
 
 `onSuccess`, `onCancel`, `onTimeout`, `onBack`, `onError`,
-`onStatusChanged`, `onMethodSelected` y `onCashPayment` (efectivo, ver
-[sección 10](#10-pago-en-efectivo)).
+`onStatusChanged`, `onMethodSelected`, `onCashPayment` (efectivo, ver
+[sección 10](#10-pago-en-efectivo)), `onCardPayment` (tarjeta, ver
+[sección 11](#11-pago-con-tarjeta-pos)) y `onBackToMethods`.
+
+**Tarjeta**
+
+| Parámetro | Tipo | Qué es |
+|---|---|---|
+| `card` | `CardOptions?` | V2 y V3: activa la tarjeta en POS y dice con qué POS cobrar. Normalmente `CardOptions(terminalId: 'TOTEM100')`. Sin él la tarjeta no aparece. |
+| `onCardPayment` | `ValueChanged<CardPayment>?` | El POS aprobó: es el `onSuccess` de la tarjeta. Obligatorio si pasas `card`. |
 
 ### Qué hace cada versión dentro de `PaymentFlow`
 
@@ -233,7 +245,8 @@ if (version == null) {
 | V2 | Carga los métodos de la cuenta. Si hay **uno solo**, va directo a su QR; si hay varios, el cliente elige, aparece el aviso y luego el QR. |
 | V3 | Muestra el botón "Pagar Bs 150.00" (o abre directo con `autoOpen`). La ventana muestra la lista, o directamente el QR si hay un solo método, y se cierra sola al pagar o al vencer. |
 
-Con `onCashPayment`, V2 y V3 ofrecen además el efectivo si la cuenta lo tiene; V1 es solo QR.
+Con `onCashPayment`, V2 y V3 ofrecen además el efectivo si la cuenta lo tiene;
+con `card`, la tarjeta en POS. V1 es solo QR.
 
 ---
 
@@ -304,10 +317,13 @@ PaymentMethods(
 | `autoSelectSingleMethod` | no | `true` | Con un solo método QR disponible, va directo a su cobro. |
 | `cashInstructionsTitle`, `cashInstructionsMessage` | no | ver sección 5 | Aviso antes de crear el código de efectivo. |
 | `onCashPayment` | no | — | Ofrece efectivo y avisa cuando el código existe. Ver [sección 10](#10-pago-en-efectivo). |
+| `card`, `onCardPayment` | no | — | Ofrece tarjeta en POS y avisa cuando el POS aprobó. Ver [sección 11](#11-pago-con-tarjeta-pos). |
+| `cardInstructionsTitle`, `cardInstructionsMessage` | no | ver sección 5 | Aviso antes de cobrar en el POS. |
 | `onMethodSelected`, `onSuccess`, `onError`, `onStatusChanged`, `onTimeout`, `onCancel`, `onBack` | no | — | Ver [sección 9](#9-qué-significa-cada-callback). |
 
-- Solo se muestran los métodos que esta versión del SDK sabe cobrar: QR, y
-  efectivo si pasas `onCashPayment`.
+- Solo se muestran los métodos que esta versión del SDK sabe cobrar: QR,
+  efectivo si pasas `onCashPayment` y tarjeta si pasas `card` (y su POS
+  responde).
 - **Un solo método:** la primera vez va directo a su QR. Si el cliente
   cancela, ve la lista (con ese método) en vez de generarse otro QR solo.
 - `onCancel` en V2: el cliente canceló un QR (verificado sin pagar) y la vista
@@ -329,7 +345,7 @@ final result = await PaymentSheet.show(
 );
 
 switch (result.status) {
-  case PaymentSheetStatus.paid:        irAPantallaDeExito(result.payment!);
+  case PaymentSheetStatus.paid:        irAPantallaDeExito(result); // result.payment (QR) o result.cardPayment (tarjeta)
   case PaymentSheetStatus.expired:     mostrarAviso('El QR venció');
   case PaymentSheetStatus.cancelled:   break; // cerró sin pagar
   case PaymentSheetStatus.cashPending: irAPagaEnCaja(result.cashPayment!); // solo con acceptCash
@@ -350,10 +366,13 @@ switch (result.status) {
 | `autoSelectSingleMethod` | no | `true` | Con un solo método QR disponible, la ventana abre directo en su QR. |
 | `acceptCash` | no | `false` | Ofrece efectivo si la cuenta lo tiene. Ver [sección 10](#10-pago-en-efectivo). |
 | `cashInstructionsTitle`, `cashInstructionsMessage` | no | ver sección 5 | Aviso antes de crear el código de efectivo. |
+| `card` | no | — | Ofrece tarjeta en POS. Ver [sección 11](#11-pago-con-tarjeta-pos). |
+| `cardInstructionsTitle`, `cardInstructionsMessage` | no | ver sección 5 | Aviso antes de cobrar en el POS. |
 | `onMethodSelected`, `onError`, `onStatusChanged` | no | — | Ver [sección 9](#9-qué-significa-cada-callback). |
 
 **Resultado (`PaymentSheetResult`):** `status` (`paid`, `expired`,
-`cancelled` o `cashPending`), `payment` (el pago confirmado, solo con `paid`),
+`cancelled` o `cashPending`), `payment` (el pago QR confirmado), `cardPayment`
+(el pago con tarjeta aprobado; con `paid` viene uno de los dos),
 `cashPayment` (el código, solo con `cashPending`), `method` (el método
 elegido), `isPaid` e `isCashPending`.
 
@@ -367,6 +386,8 @@ llega).
   verifica primero: si ya estaba pagado devuelve `paid`.
 - Si no hay métodos para pagar, muestra "Volver", que la cierra como
   `cancelled`.
+- Mientras el POS está cobrando, la ventana **no se cierra** (el POS no se
+  puede cancelar desde la app).
 
 ---
 
@@ -382,6 +403,8 @@ llega).
 | `onStatusChanged(PaymentStatus)` | Cada cambio de estado del QR. | ✅ | ✅ | ✅ |
 | `onMethodSelected(PaymentMethodInfo)` | El cliente confirmó un método, antes de crear la orden. | — | ✅ | ✅ |
 | `onCashPayment(CashPayment)` | El código de efectivo ya existe: la orden queda pendiente de pago en caja. Pasarlo es lo que activa el efectivo. | — | ✅ | ✅ (`PaymentFlow`) / `cashPending` (`PaymentSheet` con `acceptCash`) |
+| `onBackToMethods()` | La lista de métodos vuelve a verse después de elegir uno (QR cancelado, tarjeta rechazada, "Otro método"…). Úsalo para reactivar lo que tu pantalla bloquea mientras se cobra. | — | ✅ | — (la ventana avisa `onCancel` al cerrarse) |
+| `onCardPayment(CardPayment)` | El POS aprobó el pago con tarjeta. Trae autorización, últimos 4 y red para el comprobante. | — | ✅ | ✅ (`PaymentFlow`, al cerrar la ventana) / `paid` con `cardPayment` |
 
 **Importante:** no despaches un pedido solo por `onSuccess`. Confirma el pago
 también desde tu servidor.
@@ -438,7 +461,105 @@ confirmado.
 
 ---
 
-## 11. Ejemplos completos
+## 11. Pago con tarjeta (POS)
+
+El cliente elige **"Tarjeta"** y paga en un **POS Bancard** que está en la
+misma red que el equipo (un totem, una caja de parqueo…). El SDK registra el
+pago en Nexus Payments, le pide el cobro al POS, espera a que el cliente
+termine allí y registra lo que el POS respondió.
+
+### Qué hace falta
+
+1. **La cuenta con tarjeta habilitada** en Nexus Payments (método `CARD`).
+2. **El equipo registrado como terminal** en Nexus Payments, con un código
+   (el IMEI del totem, `PARKING-CAJA-1`…), la IP y el puerto del POS y la
+   forma de conexión:
+
+| Conexión | Cómo llega el SDK al POS | En el equipo |
+|---|---|---|
+| `BRIDGE` | Por el servicio local **API POS Bancard** (`http://127.0.0.1:8000`), que reenvía el cobro al POS. | El servicio instalado y corriendo. |
+| `DIRECT` | Directo al POS (`http://IP:PUERTO/sale`). | Nada más. |
+
+3. **El POS con IP fija** (reserva DHCP en el router o IP estática) y en la
+   misma red que el equipo.
+
+Cambiar la IP del POS, o pasar un equipo de `BRIDGE` a `DIRECT`, es editar el
+terminal en Nexus Payments: la app no cambia y el cambio aplica en el
+siguiente pago.
+
+### En la app: una línea
+
+```dart
+PaymentFlow(
+  version: PaymentVersion.v2,
+  payments: payments,
+  amount: carrito.total,
+  createOrderId: (method) => miBackend.crearOrden(carrito),
+  card: const CardOptions(terminalId: 'TOTEM100'), // el código del equipo
+  onCardPayment: (card) {
+    imprimirComprobante(
+      autorizacion: card.authCode,
+      tarjeta: card.maskedCard, // "VISA •••• 1234"
+      boleta: card.receiptNumber,
+    );
+    irAPantallaDeExito();
+  },
+  onSuccess: (qr) => irAPantallaDeExito(),
+)
+```
+
+- **Es opcional por equipo.** Sin `card` la tarjeta no aparece, aunque la
+  cuenta la tenga. Un celular o un equipo sin POS simplemente no lo pasa.
+- **Se oculta sola si no hay con qué cobrar:** si el terminal no está
+  registrado o el POS (o el servicio local) no responde, la tarjeta no se
+  muestra. `checkReachability: false` desactiva esa comprobación.
+- **Nunca se elige sola**, aunque sea el único método: inicia un cobro en el
+  POS.
+- **Mientras el POS cobra no hay "Volver"**: el POS no se puede cancelar desde
+  la app.
+- En `createOrderId(method)`, `method.isCard` te dice que la orden es con
+  tarjeta.
+
+| Versión | Qué pasa |
+|---|---|
+| V1 | Solo QR. |
+| V2 | "Sigue las instrucciones del POS" y luego "¡Pago aprobado!"; llama `onCardPayment(CardPayment)`. Sal cuando quieras, igual que después de `onSuccess`. |
+| V3 | Lo mismo dentro de la ventana, que se cierra sola al aprobar: `paid` con `result.cardPayment`; con `PaymentFlow` se llama `onCardPayment`. |
+
+### Cómo termina un cobro
+
+| Resultado | Qué ve el cliente | ¿Se cobró? | Qué puede hacer |
+|---|---|---|---|
+| Aprobado | "¡Pago aprobado!" con la tarjeta y la autorización | Sí | — (`onCardPayment`) |
+| Rechazado | "Tarjeta rechazada" con el motivo del POS | No | Reintentar u Otro método |
+| POS sin conexión | "No pudimos comunicarnos con el POS" | No | Reintentar o Volver |
+| No se pudo registrar | "No pudimos iniciar el cobro" | No (el POS no se tocó) | Reintentar o Volver |
+| Respuesta perdida | "No pudimos confirmar el cobro" | **Quizás** | Solo "Entendido": el SDK **nunca** reintenta, para no cobrar dos veces. El pago queda pendiente en Nexus Payments para revisarlo contra el POS. |
+
+`onError` recibe un `CardTerminalException` cuando falla el POS: su
+`outcomeUnknown` es `true` solo en el último caso.
+
+### Otras formas de configurar el POS
+
+```dart
+// El POS configurado en la app (pruebas, un equipo aún no registrado):
+card: const CardOptions.manual(CardTerminalConfig(
+  posIp: '192.168.0.34',
+  posPort: 3000,
+  connection: CardConnection.direct, // o bridge
+)),
+
+// Tu propio CardTerminal (otra marca de POS, un simulador):
+card: CardOptions.custom(MiTerminal()),
+```
+
+**Saber si ya se cobró:** `payments.getCardPaymentStatus(orderId)` devuelve
+`pending`, `paid` o `failed`. Tu servidor también recibe la notificación de la
+cuenta (proveedor `CARD`) cuando el pago queda aprobado o rechazado.
+
+---
+
+## 12. Ejemplos completos
 
 ### La orden ya existe (por ejemplo, la crea tu backend antes de cobrar)
 
@@ -522,7 +643,7 @@ pago" y deja reintentar.
 
 ---
 
-## 12. Sin interfaz: `PaymentSdk`, modelos y widgets sueltos
+## 13. Sin interfaz: `PaymentSdk`, modelos y widgets sueltos
 
 Para armar una pantalla propia o cobrar sin los componentes del SDK.
 
@@ -535,6 +656,12 @@ Para armar una pantalla propia o cobrar sin los componentes del SDK.
 | `getPaymentMethods()` | `List<PaymentMethodInfo>` | Métodos habilitados de la cuenta, en orden. |
 | `createCashPayment({orderId, amount, description = ''})` | `CashPayment` | Crea el pago en efectivo y su código. El mismo `orderId` pendiente devuelve el mismo código. Si la cuenta no tiene efectivo: `ValidationException`. |
 | `getCashPaymentStatus(orderId)` | `PaymentStatus` | Estado del pago en efectivo: `pending`, `paid` o `cancelled`. Orden desconocida: `PaymentNotFoundException`. |
+| `getCardTerminal(terminalId)` | `CardTerminalConfig` | Cómo llegar al POS del terminal registrado. Desconocido o inactivo: `PaymentNotFoundException`. |
+| `resolveCardTerminal(CardOptions)` | `CardTerminal` | El terminal listo para cobrar según las opciones. |
+| `chargeCard({terminal, orderId, amount, description, terminalId, onPosStarted})` | `CardPayment` | El cobro completo para pantallas propias: registra, cobra en el POS y registra el resultado (aprobado o rechazado). Errores: ver sección 11. |
+| `createCardPayment({orderId, amount, description, terminalId})` | `CardPayment` | Registra el pago antes de cobrar. Una orden ya cobrada con tarjeta: `BackendException` (409). |
+| `reportCardResult(id, CardChargeResult)` | `CardPayment` | Registra lo que respondió el POS. Repetirlo no cambia nada. |
+| `getCardPaymentStatus(orderId)` | `PaymentStatus` | Estado del último pago con tarjeta: `pending`, `paid` o `failed`. |
 | `dispose()` | — | Cierra las conexiones. |
 
 ```dart
@@ -553,8 +680,12 @@ final sub = payments.watchPaymentStatus('ORDER-123').listen((status) {
 |---|---|
 | `QrPayment` | `paymentId`, `qrImageBase64` (PNG en Base64), `qrImageBytes` / `hasQrImage`, `status`, `dueDate`. |
 | `CashPayment` | `code`, `orderId`, `amount`, `currency`, `status`, `description`, `createdAt`, `isPending`. |
-| `PaymentStatus` | `pending`, `paid`, `failed`, `expired`, `cancelled` (solo efectivo) y `unknown` (un estado nuevo que esta versión no conoce). `isFinal` indica si ya no cambiará. |
-| `PaymentMethodInfo` | `code` (`QR`, `EFECTIVO`, `CARD`…), `name`, `description`, `iconUrl`, `currency`, `position`, `isQr`, `isCash`, `isSupported`. |
+| `CardPayment` | `id`, `orderId`, `amount`, `currency`, `status`, `terminalId`, `authCode`, `receiptNumber`, `last4`, `bin`, `cardNetwork`, `entryLabel`, `message`, `maskedCard`, `isApproved`, `isRejected`, `recorded` (`false` si el POS respondió pero Nexus Payments no pudo registrarlo). |
+| `CardOptions` | `CardOptions(terminalId:)`, `.manual(CardTerminalConfig)`, `.custom(CardTerminal)`; `checkReachability`. |
+| `CardTerminalConfig` | `code`, `name`, `connection` (`bridge`/`direct`), `posIp`, `posPort`, `bridgeUrl`. |
+| `CardTerminal` | `isReachable()`, `charge(...)`. Implementaciones: `BancardBridgeTerminal`, `BancardDirectTerminal`. |
+| `PaymentStatus` | `pending`, `paid`, `failed` (también tarjeta rechazada), `expired`, `cancelled` (solo efectivo) y `unknown` (un estado nuevo que esta versión no conoce). `isFinal` indica si ya no cambiará. |
+| `PaymentMethodInfo` | `code` (`QR`, `EFECTIVO`, `CARD`…), `name`, `description`, `iconUrl`, `currency`, `position`, `isQr`, `isCash`, `isCard`, `isSupported`. |
 | `PaymentVersion` | `v1`, `v2`, `v3`; `tryParse(String?)` y `label`. |
 
 ### Widgets sueltos
@@ -569,7 +700,7 @@ final sub = payments.watchPaymentStatus('ORDER-123').listen((status) {
 
 ---
 
-## 13. Errores
+## 14. Errores
 
 Todo error es un `PaymentSdkException` con `message`, `statusCode`, `details`
 e `isRetryable`. Los componentes ya los muestran; para manejarlos tú, usa
@@ -586,10 +717,11 @@ e `isRetryable`. Los componentes ya los muestran; para manejarlos tú, usa
 | `RateLimitException` | 429 | sí |
 | `BackendException` | Otros 5xx o respuesta inesperada | sí si es 5xx |
 | `StatusWatchTimeoutException` | `watchPaymentStatus` superó su `timeout` | no |
+| `CardTerminalException` | Falló el POS o el servicio local. `outcomeUnknown`: si es `true`, el cobro pudo haberse hecho | sí solo si `outcomeUnknown` es `false` |
 
 ---
 
-## 14. Lista de verificación
+## 15. Lista de verificación
 
 - [ ] Flutter 3.24 o superior.
 - [ ] Dependencia por `git` con un `ref` de tag; `pubspec.lock` commiteado.
@@ -602,11 +734,12 @@ e `isRetryable`. Los componentes ya los muestran; para manejarlos tú, usa
 - [ ] V2: `onBack` si tu pantalla no tiene otro botón de volver.
 - [ ] V2/V3: el backend tiene `GET /api/payment-methods`.
 - [ ] Efectivo: `onCashPayment` (o `acceptCash`) muestra el código al cliente y tu sistema deja la orden pendiente de pago en caja.
+- [ ] Tarjeta: el equipo está registrado como terminal, el POS tiene IP fija, `card` lleva su código y `onCardPayment` imprime el comprobante.
 - [ ] Tu servidor confirma el pago antes de despachar.
 
 ---
 
-## 15. Problemas comunes
+## 16. Problemas comunes
 
 | Síntoma | Causa | Solución |
 |---|---|---|
@@ -619,3 +752,6 @@ e `isRetryable`. Los componentes ya los muestran; para manejarlos tú, usa
 | "No hay métodos de pago disponibles" | La cuenta no tiene métodos activos. | Actívalos en Nexus Payments. |
 | No aparece "Pago en efectivo" | Tu app no pasa `onCashPayment` (o `acceptCash`), o la cuenta no lo tiene habilitado. | Pásalo y pide que lo habiliten en Nexus Payments. |
 | "El pago en efectivo no está habilitado para este comercio" | La cuenta no tiene efectivo configurado. | Pide que lo habiliten en Nexus Payments. |
+| No aparece "Tarjeta" | Falta `card`, la cuenta no tiene `CARD`, el terminal no está registrado o activo, o el POS / el servicio local no responde. | Con `enableLogging: true` el SDK imprime por qué la ocultó. Revisa el terminal, la IP del POS y que el servicio esté corriendo. |
+| "No pudimos comunicarnos con el POS" | El POS está apagado, cambió de IP o no está en la misma red. | Revisa el POS y la IP del terminal en Nexus Payments. |
+| "El pago con tarjeta no está habilitado para este comercio" | La cuenta no tiene `CARD` configurado. | Pide que lo habiliten en Nexus Payments. |

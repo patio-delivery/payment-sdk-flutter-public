@@ -2,14 +2,18 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../../card/card_options.dart';
+import '../../card/card_terminal.dart';
 import '../../core/payment_sdk.dart';
 import '../../exceptions/payment_sdk_exception.dart';
+import '../../models/card_payment.dart';
 import '../../models/cash_payment.dart';
 import '../../models/payment_method_info.dart';
 import '../../models/payment_status.dart';
 import '../../models/qr_payment.dart';
 import '../../session/payment_session.dart';
 import 'animations.dart';
+import 'card_checkout.dart';
 import 'cash_checkout.dart';
 import 'method_list.dart';
 import 'payment_card.dart';
@@ -25,6 +29,13 @@ class MethodsFlowController {
 
   /// The cash payment on screen, once its code exists.
   CashPayment? get cashPayment => _state?._cashPayment;
+
+  /// Whether a card payment is being registered or charged on the POS. The
+  /// POS can't be cancelled from the app, so leaving is not allowed then.
+  bool get isCardBusy => _state?._cardBusy ?? false;
+
+  /// The card payment the POS approved.
+  CardPayment? get cardPayment => _state?._cardPayment;
 
   /// Checks a QR on screen before leaving. True when it is safe to leave;
   /// false when the QR was in fact paid (the flow then reports success).
@@ -58,6 +69,10 @@ class MethodsFlow extends StatefulWidget {
     this.cashInstructionsMessage =
         'Te daremos un código de pago. Preséntalo en caja para completar '
             'tu compra.',
+    this.cardInstructionsTitle = 'Paga con tarjeta',
+    this.cardInstructionsMessage =
+        'Acerca, inserta o desliza tu tarjeta en el POS y sigue sus '
+            'indicaciones.',
     this.qrTimeout = const Duration(minutes: 5),
     this.confirmTimeout = const Duration(seconds: 20),
     this.pollInterval = const Duration(seconds: 3),
@@ -72,6 +87,9 @@ class MethodsFlow extends StatefulWidget {
     this.onCashPayment,
     this.onCashDone,
     this.cashDoneLabel = 'Listo',
+    this.card,
+    this.onCardPayment,
+    this.onBackToMethods,
     this.autoSelectSingleMethod = true,
   }) : assert(
           orderId != null || createOrderId != null,
@@ -111,6 +129,8 @@ class MethodsFlow extends StatefulWidget {
   final String qrInstructionsMessage;
   final String cashInstructionsTitle;
   final String cashInstructionsMessage;
+  final String cardInstructionsTitle;
+  final String cardInstructionsMessage;
   final Duration qrTimeout;
   final Duration confirmTimeout;
   final Duration pollInterval;
@@ -143,10 +163,23 @@ class MethodsFlow extends StatefulWidget {
   final ValueChanged<CashPayment>? onCashDone;
   final String cashDoneLabel;
 
+  /// Offers card on a POS when the account has it and the POS answers.
+  /// Without it card is never shown.
+  final CardOptions? card;
+
+  /// Called once the POS approved a card payment.
+  final ValueChanged<CardPayment>? onCardPayment;
+
+  /// Called whenever the methods list shows again after a method was chosen
+  /// (a QR cancelled or renewed, a rejected card, a failed cash code…), so
+  /// the app can re-enable what it locked while paying.
+  final VoidCallback? onBackToMethods;
+
   /// With only one QR method available, go straight to it (no list, no
   /// instructions) the first time the methods load. Cancelling then shows
   /// the list, so the customer is not sent into a new QR on their own. Cash
-  /// is never chosen on its own: it leaves an order pending.
+  /// is never chosen on its own: it leaves an order pending; nor is card: it
+  /// starts a sale on the POS.
   final bool autoSelectSingleMethod;
 
   @override
@@ -161,6 +194,15 @@ class _MethodsFlowState extends State<MethodsFlow> {
   /// The cash order on screen, and its payment once the code exists.
   String? _cashOrderId;
   CashPayment? _cashPayment;
+
+  /// The POS card is charged on (resolved with the methods), and the card
+  /// order on screen with its approved payment.
+  CardTerminal? _cardTerminal;
+  bool _ownsCardTerminal = false;
+  String? _cardOrderId;
+  bool _cardBusy = false;
+  CardPayment? _cardPayment;
+
   String _description = '';
   bool _preparing = false;
   String? _orderError;
@@ -188,14 +230,20 @@ class _MethodsFlowState extends State<MethodsFlow> {
   void dispose() {
     if (widget.controller?._state == this) widget.controller?._state = null;
     _session?.dispose();
+    _releaseCardTerminal();
     super.dispose();
   }
 
   Future<List<PaymentMethodInfo>> _loadMethods() async {
     final methods = await widget.payments.getPaymentMethods();
     final acceptsCash = widget.onCashPayment != null;
+    final hasCard = methods.any((m) => m.isSupported && m.isCard);
+    final terminal = hasCard ? await _resolveCardTerminal() : null;
     final supported = methods
-        .where((m) => m.isSupported && (!m.isCash || acceptsCash))
+        .where((m) =>
+            m.isSupported &&
+            (!m.isCash || acceptsCash) &&
+            (!m.isCard || terminal != null))
         .toList();
     if (widget.autoSelectSingleMethod &&
         supported.length == 1 &&
@@ -207,6 +255,43 @@ class _MethodsFlowState extends State<MethodsFlow> {
       unawaited(_select(supported.single));
     }
     return supported;
+  }
+
+  /// The POS for card, or null when card can't be offered: the app didn't
+  /// turn it on, the terminal is not registered, or its POS doesn't answer.
+  /// Resolved on every load, so an IP edited in Nexus Payments applies on the
+  /// next payment.
+  Future<CardTerminal?> _resolveCardTerminal() async {
+    final options = widget.card;
+    if (options == null) return null;
+    try {
+      final terminal = await widget.payments.resolveCardTerminal(options);
+      final owned = options.terminal == null;
+      if (options.checkReachability && !await terminal.isReachable()) {
+        if (owned) terminal.close();
+        _log('card hidden: $terminal does not answer');
+        return null;
+      }
+      _releaseCardTerminal();
+      _cardTerminal = terminal;
+      _ownsCardTerminal = owned;
+      return terminal;
+    } on PaymentSdkException catch (e) {
+      _log('card hidden: $e');
+      return null;
+    }
+  }
+
+  void _releaseCardTerminal() {
+    if (_ownsCardTerminal) _cardTerminal?.close();
+    _cardTerminal = null;
+    _ownsCardTerminal = false;
+  }
+
+  void _log(String message) {
+    if (widget.payments.config.enableLogging) {
+      debugPrint('[PaymentSdk] $message');
+    }
   }
 
   /// Hands the current widget values to the session.
@@ -242,6 +327,18 @@ class _MethodsFlowState extends State<MethodsFlow> {
       return;
     }
     if (!mounted) return;
+    if (method.isCard) {
+      return setState(() {
+        _preparing = false;
+        _chosen = method;
+        _description =
+            widget.descriptionFor?.call(orderId) ?? widget.description;
+        _cardOrderId = orderId;
+        // The checkout starts registering the payment right away.
+        _cardBusy = true;
+        _cardPayment = null;
+      });
+    }
     if (method.isCash) {
       return setState(() {
         _preparing = false;
@@ -272,7 +369,11 @@ class _MethodsFlowState extends State<MethodsFlow> {
       _chosen = null;
       _cashOrderId = null;
       _cashPayment = null;
+      _cardOrderId = null;
+      _cardBusy = false;
+      _cardPayment = null;
     });
+    widget.onBackToMethods?.call();
   }
 
   Future<void> _cancel() async {
@@ -297,6 +398,12 @@ class _MethodsFlowState extends State<MethodsFlow> {
         message: widget.cashInstructionsMessage,
       );
     }
+    if (method.isCard) {
+      return MethodInstructions(
+        title: widget.cardInstructionsTitle,
+        message: widget.cardInstructionsMessage,
+      );
+    }
     return null;
   }
 
@@ -304,6 +411,8 @@ class _MethodsFlowState extends State<MethodsFlow> {
   Widget build(BuildContext context) {
     final session = _session;
     final cashOrderId = _cashOrderId;
+    final cardOrderId = _cardOrderId;
+    final cardTerminal = _cardTerminal;
     return AnimatedSwitcher(
       duration: const Duration(milliseconds: 300),
       child: session != null
@@ -311,22 +420,28 @@ class _MethodsFlowState extends State<MethodsFlow> {
               key: ValueKey(session),
               child: Center(child: _checkout(session)),
             )
-          : cashOrderId != null
+          : cardOrderId != null && cardTerminal != null
               ? KeyedSubtree(
-                  key: ValueKey('cash-$cashOrderId'),
-                  child: Center(child: _cashCheckout(cashOrderId)),
+                  key: ValueKey('card-$cardOrderId'),
+                  child:
+                      Center(child: _cardCheckout(cardOrderId, cardTerminal)),
                 )
-              : KeyedSubtree(
-                  key: const ValueKey('methods'),
-                  // Keeps the cards a readable size on wide screens.
-                  child: Align(
-                    alignment: Alignment.topCenter,
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 720),
-                      child: _methodsView(),
+              : cashOrderId != null
+                  ? KeyedSubtree(
+                      key: ValueKey('cash-$cashOrderId'),
+                      child: Center(child: _cashCheckout(cashOrderId)),
+                    )
+                  : KeyedSubtree(
+                      key: const ValueKey('methods'),
+                      // Keeps the cards a readable size on wide screens.
+                      child: Align(
+                        alignment: Alignment.topCenter,
+                        child: ConstrainedBox(
+                          constraints: const BoxConstraints(maxWidth: 720),
+                          child: _methodsView(),
+                        ),
+                      ),
                     ),
-                  ),
-                ),
     );
   }
 
@@ -360,6 +475,31 @@ class _MethodsFlowState extends State<MethodsFlow> {
       onBack: _backToMethods,
       onDone: widget.onCashDone,
       doneLabel: widget.cashDoneLabel,
+    );
+    if (!widget.showCard) return view;
+    return PaymentCard(
+      amount: widget.amount,
+      currency: _chosen?.currency ?? widget.currency,
+      description: _description,
+      child: view,
+    );
+  }
+
+  Widget _cardCheckout(String orderId, CardTerminal terminal) {
+    final view = CardCheckout(
+      payments: widget.payments,
+      terminal: terminal,
+      orderId: orderId,
+      amount: widget.amount,
+      description: _description,
+      terminalId: widget.card?.terminalId,
+      onApproved: (payment) {
+        _cardPayment = payment;
+        widget.onCardPayment?.call(payment);
+      },
+      onError: widget.onError,
+      onBusyChanged: (busy) => _cardBusy = busy,
+      onBack: _backToMethods,
     );
     if (!widget.showCard) return view;
     return PaymentCard(

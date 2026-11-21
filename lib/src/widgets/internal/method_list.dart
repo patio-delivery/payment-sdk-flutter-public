@@ -274,7 +274,11 @@ class _MethodIcon extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fallback = Icon(
-      method.isQr ? Icons.qr_code_2 : Icons.payments_outlined,
+      method.isQr
+          ? Icons.qr_code_2
+          : method.isCard
+              ? Icons.credit_card
+              : Icons.payments_outlined,
       color: Theme.of(context).colorScheme.primary,
     );
     final url = method.iconUrl;

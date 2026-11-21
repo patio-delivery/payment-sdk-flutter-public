@@ -2,8 +2,10 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 
+import '../card/card_options.dart';
 import '../core/payment_sdk.dart';
 import '../exceptions/payment_sdk_exception.dart';
+import '../models/card_payment.dart';
 import '../models/cash_payment.dart';
 import '../models/payment_method_info.dart';
 import '../models/payment_status.dart';
@@ -13,7 +15,8 @@ import 'internal/responsive.dart';
 
 /// How a payment sheet ended.
 enum PaymentSheetStatus {
-  /// The payment was confirmed.
+  /// The payment was confirmed: a QR paid ([PaymentSheetResult.payment]) or
+  /// a card the POS approved ([PaymentSheetResult.cardPayment]).
   paid,
 
   /// The QR expired unpaid.
@@ -34,11 +37,13 @@ class PaymentSheetResult {
     this.payment,
     this.method,
     this.cashPayment,
+    this.cardPayment,
   });
 
   final PaymentSheetStatus status;
 
-  /// The confirmed payment, when [status] is [PaymentSheetStatus.paid].
+  /// The confirmed QR payment, when [status] is [PaymentSheetStatus.paid]
+  /// and the customer paid by QR.
   final QrPayment? payment;
 
   /// The method the customer chose, if any.
@@ -47,6 +52,11 @@ class PaymentSheetResult {
   /// The cash payment and its code, when [status] is
   /// [PaymentSheetStatus.cashPending].
   final CashPayment? cashPayment;
+
+  /// The card payment the POS approved, when [status] is
+  /// [PaymentSheetStatus.paid] and the customer paid by card. Only with
+  /// `card`.
+  final CardPayment? cardPayment;
 
   bool get isPaid => status == PaymentSheetStatus.paid;
   bool get isCashPending => status == PaymentSheetStatus.cashPending;
@@ -78,6 +88,11 @@ class PaymentSheetResult {
 /// With [acceptCash] the sheet also offers cash when the account has it:
 /// once the code is on screen, "Listo" or closing the window resolves to
 /// [PaymentSheetStatus.cashPending] with the code.
+///
+/// With [card] the sheet also offers card on a physical POS when the account
+/// has it and the POS answers. While the POS is charging the window can't be
+/// closed (the POS can't be cancelled); once it approves, the window closes
+/// as [PaymentSheetStatus.paid] with [PaymentSheetResult.cardPayment].
 abstract final class PaymentSheet {
   /// Screens at least this wide get a centered dialog.
   static const dialogMinWidth = 600.0;
@@ -103,7 +118,12 @@ abstract final class PaymentSheet {
     String cashInstructionsMessage =
         'Te daremos un código de pago. Preséntalo en caja para completar '
             'tu compra.',
+    String cardInstructionsTitle = 'Paga con tarjeta',
+    String cardInstructionsMessage =
+        'Acerca, inserta o desliza tu tarjeta en el POS y sigue sus '
+            'indicaciones.',
     bool acceptCash = false,
+    CardOptions? card,
     Duration qrTimeout = const Duration(minutes: 5),
     Duration confirmTimeout = const Duration(seconds: 20),
     Duration pollInterval = const Duration(seconds: 3),
@@ -134,7 +154,10 @@ abstract final class PaymentSheet {
       qrInstructionsMessage: qrInstructionsMessage,
       cashInstructionsTitle: cashInstructionsTitle,
       cashInstructionsMessage: cashInstructionsMessage,
+      cardInstructionsTitle: cardInstructionsTitle,
+      cardInstructionsMessage: cardInstructionsMessage,
       acceptCash: acceptCash,
+      card: card,
       qrTimeout: qrTimeout,
       confirmTimeout: confirmTimeout,
       pollInterval: pollInterval,
@@ -199,7 +222,10 @@ class _SheetBody extends StatefulWidget {
     required this.qrInstructionsMessage,
     required this.cashInstructionsTitle,
     required this.cashInstructionsMessage,
+    required this.cardInstructionsTitle,
+    required this.cardInstructionsMessage,
     required this.acceptCash,
+    required this.card,
     required this.qrTimeout,
     required this.confirmTimeout,
     required this.pollInterval,
@@ -226,7 +252,10 @@ class _SheetBody extends StatefulWidget {
   final String qrInstructionsMessage;
   final String cashInstructionsTitle;
   final String cashInstructionsMessage;
+  final String cardInstructionsTitle;
+  final String cardInstructionsMessage;
   final bool acceptCash;
+  final CardOptions? card;
   final Duration qrTimeout;
   final Duration confirmTimeout;
   final Duration pollInterval;
@@ -277,6 +306,18 @@ class _SheetBodyState extends State<_SheetBody> {
     );
   }
 
+  void _onCardApproved(CardPayment card) {
+    // Let the customer see "¡Pago aprobado!" before closing.
+    _successTimer = Timer(
+      widget.successDelay,
+      () => _finish(PaymentSheetResult(
+        PaymentSheetStatus.paid,
+        method: _method,
+        cardPayment: card,
+      )),
+    );
+  }
+
   void _onCashDone(CashPayment cash) => _finish(PaymentSheetResult(
         PaymentSheetStatus.cashPending,
         method: _method,
@@ -285,6 +326,17 @@ class _SheetBodyState extends State<_SheetBody> {
 
   Future<void> _requestClose() async {
     if (_closing || _done) return;
+    // The POS is charging and can't be cancelled from here.
+    if (_flow.isCardBusy) return;
+    // An approved card is a paid order; its timer may not have fired yet.
+    if (_flow.cardPayment case final card?) {
+      _successTimer?.cancel();
+      return _finish(PaymentSheetResult(
+        PaymentSheetStatus.paid,
+        method: _method,
+        cardPayment: card,
+      ));
+    }
     // A cash code on screen is a pending order, not a cancelled one.
     if (_flow.cashPayment case final cash?) return _onCashDone(cash);
     if (!_flow.isPaying) {
@@ -402,6 +454,8 @@ class _SheetBodyState extends State<_SheetBody> {
                   qrInstructionsMessage: widget.qrInstructionsMessage,
                   cashInstructionsTitle: widget.cashInstructionsTitle,
                   cashInstructionsMessage: widget.cashInstructionsMessage,
+                  cardInstructionsTitle: widget.cardInstructionsTitle,
+                  cardInstructionsMessage: widget.cardInstructionsMessage,
                   qrTimeout: widget.qrTimeout,
                   confirmTimeout: widget.confirmTimeout,
                   pollInterval: widget.pollInterval,
@@ -419,6 +473,8 @@ class _SheetBodyState extends State<_SheetBody> {
                   // Closing reads the code from the controller.
                   onCashPayment: widget.acceptCash ? (_) {} : null,
                   onCashDone: widget.acceptCash ? _onCashDone : null,
+                  card: widget.card,
+                  onCardPayment: widget.card != null ? _onCardApproved : null,
                   autoSelectSingleMethod: widget.autoSelectSingleMethod,
                 ),
               ),
