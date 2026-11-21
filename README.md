@@ -185,7 +185,7 @@ dependencies:
   payment_sdk_flutter:
     git:
       url: https://github.com/patio-delivery/payment-sdk-flutter-public.git
-      ref: v0.6.0
+      ref: v0.6.1
 ```
 
 ```dart

@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.6.1
+
+- **Card is no longer hidden on a POS that is there.** In `DIRECT`
+  connection, `isReachable` only treats a failed connection (nothing
+  listening, no route, connect timeout) as "not there". A POS that takes the
+  connection and closes it without an HTTP answer (Linkser's only answers
+  `/sale`) or doesn't answer in time now counts as reachable, so the card
+  method shows.
+
 ## 0.6.0
 
 - **Card payments on a physical POS ("CARD")** in V2 and V3: the customer pays
